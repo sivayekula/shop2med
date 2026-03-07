@@ -5,7 +5,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateInventoryDto {
   @ApiProperty({ example: '507f1f77bcf86cd799439011' })
   @IsMongoId()
-  medicine: string;
+  medicineName: string;
 
   @ApiProperty({ example: 'BATCH-2024-001' })
   @IsString()

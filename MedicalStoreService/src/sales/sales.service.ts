@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Sale, SaleDocument } from './schemas/sale.schema';
 import { SaleReturn, SaleReturnDocument } from './schemas/sale-return.schema';
 import { Inventory, InventoryDocument } from '../inventory/schemas/inventory.schema';
@@ -34,9 +34,13 @@ export class SalesService {
 
     for (const item of createSaleDto.items) {
       // Verify inventory exists and has sufficient quantity
+      // Convert both IDs to ObjectId for proper database querying
+      const inventoryObjectId = new Types.ObjectId(item.inventory);
+      const userObjectId = new Types.ObjectId(userId);
+      
       const inventory = await this.inventoryModel.findOne({
-        _id: item.inventory,
-        user: userId,
+        _id: inventoryObjectId,
+        user: userObjectId,
         isActive: true,
       }).populate('medicine');
 
@@ -141,15 +145,18 @@ export class SalesService {
     const safeLimit = limit || 50;
     const skip = Math.max(0, (safePage - 1) * safeLimit);
 
+    // Convert userId to ObjectId for consistent querying
+    const userObjectId = new Types.ObjectId(userId);
+
     const [sales, total] = await Promise.all([
       this.saleModel
-        .find({ user: userId, isActive: true })
+        .find({ user: userObjectId, isActive: true })
         .populate('items.medicine')
         .sort({ saleDate: -1 })
         .skip(skip)
         .limit(safeLimit)
         .exec(),
-      this.saleModel.countDocuments({ user: userId, isActive: true }),
+      this.saleModel.countDocuments({ user: userObjectId, isActive: true }),
     ]);
 
     return {

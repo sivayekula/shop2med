@@ -1,11 +1,6 @@
-import { 
-  Injectable, 
-  NotFoundException, 
-  BadRequestException,
-  ConflictException 
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Inventory, InventoryDocument } from './schemas/inventory.schema';
 import { StockTransaction, StockTransactionDocument } from './schemas/stock-transaction.schema';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
@@ -25,14 +20,13 @@ export class InventoryService {
   async create(createInventoryDto: CreateInventoryDto, userId: string): Promise<Inventory> {
     // Check if batch already exists for this medicine
     const existingBatch = await this.inventoryModel.findOne({
-      medicine: createInventoryDto.medicine,
-      batchNumber: createInventoryDto.batchNumber,
+      medicineName: createInventoryDto.medicineName,
       user: userId,
     });
 
     if (existingBatch) {
       throw new ConflictException(
-        'Batch number already exists for this medicine. Use update to add more stock.'
+        'Medicine already exists. Use update to add more stock.'
       );
     }
 
@@ -178,18 +172,55 @@ export class InventoryService {
 
   // Get all batches for a specific medicine
   async findByMedicine(medicineId: string, userId: string): Promise<Inventory[]> {
-    return this.inventoryModel
-      .find({ 
-        medicine: medicineId, 
-        user: userId, 
-        isActive: true 
-      })
-      .sort({ expiryDate: 1 })
-      .exec();
+    try {
+      // Convert both IDs to ObjectId for proper database querying
+      // This ensures consistent behavior across different MongoDB drivers
+      const userObjectId = new Types.ObjectId(userId);
+      const medicineObjectId = new Types.ObjectId(medicineId);
+      
+      // Try to find by medicine reference (ObjectId)
+      let inventory = await this.inventoryModel
+        .find({ 
+          medicine: medicineObjectId, 
+          user: userObjectId, 
+          isActive: true 
+        })
+        .sort({ expiryDate: 1 })
+        .exec();
+      
+      // If no results, try to find by medicine name using the medicineId as name
+      if (inventory.length === 0) {
+        try {
+          // For items without medicine reference, the medicineId might actually be the medicine name
+          // Try searching by medicine name directly
+          inventory = await this.inventoryModel
+            .find({ 
+              medicineName: medicineId, 
+              user: userObjectId, 
+              isActive: true 
+            })
+            .sort({ expiryDate: 1 })
+            .exec();
+        } catch (error) {
+          console.error('Error finding medicine:', error);
+          // If medicine lookup fails, return empty array
+        }
+      }
+      
+      return inventory;
+    } catch (error) {
+      // Handle invalid ObjectId errors
+      if (error.name === 'BSONTypeError' || error.message.includes('ObjectId')) {
+        console.error('Invalid ObjectId provided:', { medicineId, userId, error: error.message });
+        return [];
+      }
+      throw error; // Re-throw other errors
+    }
   }
 
   // Update inventory
   async update(id: string, userId: string, updateDto: UpdateInventoryDto): Promise<Inventory> {
+    // Mongoose will automatically convert string IDs to ObjectId when schema is properly defined
     const inventory = await this.inventoryModel
       .findOneAndUpdate(
         { _id: id, user: userId },
@@ -206,12 +237,13 @@ export class InventoryService {
     return inventory;
   }
 
-  // Adjust stock (add/remove quantity)
+  // Adjust stock quantity
   async adjustStock(
-    id: string, 
-    userId: string, 
+    id: string,
+    userId: string,
     adjustDto: AdjustStockDto
   ): Promise<Inventory> {
+    // Mongoose will automatically convert string IDs to ObjectId when schema is properly defined
     const inventory = await this.inventoryModel.findOne({ _id: id, user: userId });
 
     if (!inventory) {
@@ -275,6 +307,7 @@ export class InventoryService {
 
   // Delete inventory (soft delete)
   async remove(id: string, userId: string): Promise<void> {
+    // Mongoose will automatically convert string IDs to ObjectId when schema is properly defined
     const result = await this.inventoryModel
       .findOneAndUpdate(
         { _id: id, user: userId },
@@ -290,6 +323,7 @@ export class InventoryService {
 
   // Get low stock alerts
   async getLowStockAlerts(userId: string): Promise<any[]> {
+    // Mongoose will automatically convert string IDs to ObjectId when schema is properly defined
     const inventory = await this.inventoryModel
       .find({ 
         user: userId, 
@@ -331,6 +365,7 @@ export class InventoryService {
 
   // Get expired items
   async getExpiredItems(userId: string): Promise<any[]> {
+    // Mongoose will automatically convert string IDs to ObjectId when schema is properly defined
     const inventory = await this.inventoryModel
       .find({ 
         user: userId, 

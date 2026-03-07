@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from './schemas/order.schema';
 import {
   Medicine,
@@ -48,11 +48,11 @@ export class OrdersService {
     // Try to match medicines with database
     const processedItems = await Promise.all(
       createOrderDto.items.map(async (item) => {
-        let medicine = null;
+        let medicineName = null;
         let isMatched = false;
 
-        if (item.medicine) {
-          medicine = item.medicine;
+        if (item.medicineName) {
+          medicineName = item.medicineName;
           isMatched = true;
         } else {
           // Try to find medicine by name
@@ -62,14 +62,14 @@ export class OrdersService {
           });
 
           if (foundMedicine) {
-            medicine = foundMedicine._id;
+            medicineName = foundMedicine.name;
             isMatched = true;
           }
         }
 
         return {
           ...item,
-          medicine,
+          medicineName,
           isMatched,
           isVerified: true, // Manual entry is pre-verified
           totalPrice: item.unitPrice
@@ -102,7 +102,7 @@ export class OrdersService {
     });
 
     await order.save();
-    return order.populate('items.medicine');
+    return order.populate('items.medicineName');
   }
 
   // Create order from image (OCR)
@@ -600,61 +600,118 @@ export class OrdersService {
       const updates = [];
 
       for (const item of order.items) {
-        // For unmatched items, we'll still create inventory but without medicine reference
-        if (!item.medicine || !item.isMatched) {
-          console.log(`Creating inventory for unmatched item: ${item.medicineName}`);
-          
-          // Create inventory without medicine reference
-          const newInventory = {
-            user: userId,
-            medicineName: item.medicineName, // Store medicine name as string
-            batchNumber: `BATCH-${order.orderNumber}-${Date.now()}`,
-            quantity: item.quantity,
-            purchasePrice: item.unitPrice || 0,
-            sellingPrice: item.mrp || item.unitPrice || 0,
-            mrp: item.mrp || 0,
-            manufactureDate: new Date(),
-            expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
-            reorderLevel: 10,
-            status: 'active',
-            isActive: true,
-            notes: `Auto-created from order ${order.orderNumber} (unmatched medicine)`,
-          };
-
-          updates.push(this.inventoryModel.create(newInventory));
+        // Get medicine name from various possible fields
+        const medicineName = item.medicineName
+        
+        // Skip if no medicine name available
+        if (!medicineName) {
+          console.log(`skipping item without medicine name:`, item);
           continue;
         }
 
-        // For matched items, proceed with normal logic
-        // Find existing inventory record for this medicine
-        const existingInventory = await this.inventoryModel.findOne({
-          medicine: item.medicine,
-          user: userId,
+        console.log(`Processing item: ${medicineName}, isMatched: ${item.isMatched}`);
+
+        let medicineRecord = null;
+        let isMatched = item.isMatched || false;
+
+        // Always try to find or create medicine record
+        // Try to find existing medicine by name
+        medicineRecord = await this.medicineModel.findOne({
+          name: new RegExp(`^${medicineName}$`, 'i'),
           isActive: true,
         });
 
+        if (!medicineRecord) {
+          // Create new medicine record
+          console.log(`Creating new medicine record: ${medicineName}`);
+          medicineRecord = await this.medicineModel.create({
+            name: medicineName,
+            genericName: medicineName, // Use same name for generic name
+            dosageForm: 'Unknown', // Default dosage form
+            manufacturer: 'Unknown', // Default manufacturer
+            strength: item.strength || 'Unknown', // Use strength if available
+            category: 'General', // Default category
+            description: `Auto-created from order: ${order.orderNumber}`,
+            isActive: true,
+          });
+          
+          console.log(`Created medicine with ID: ${medicineRecord._id}`);
+          isMatched = true; // Now it's matched since we created the medicine
+        } else {
+          console.log(`Found existing medicine: ${medicineRecord.name} (ID: ${medicineRecord._id})`);
+          isMatched = true;
+        }
+
+        // First try to find existing inventory by medicine name
+        let existingInventory = await this.inventoryModel.findOne({
+          medicineName: medicineRecord.name,
+          user: new Types.ObjectId(userId), // Convert string userId to ObjectId
+          isActive: true,
+        });
+
+        console.log(`Looking for existing inventory: ${existingInventory ? 'Found' : 'Not found'}`);
+
+        // If no exact match found, check if there are any duplicate records and consolidate them
+        if (!existingInventory && medicineRecord) {
+          const duplicateRecords = await this.inventoryModel.find({
+            medicineName: medicineRecord.name,
+            user: new Types.ObjectId(userId), // Convert string userId to ObjectId
+            isActive: true,
+          });
+
+          console.log(`Found ${duplicateRecords.length} duplicate inventory records for medicine ${medicineRecord.name}`);
+          
+          if (duplicateRecords.length > 1) {
+            // Consolidate duplicates by keeping the first one and summing quantities
+            const primaryRecord = duplicateRecords[0];
+            const totalQuantity = duplicateRecords.reduce((sum, record) => sum + record.quantity, 0);
+            
+            await this.inventoryModel.updateOne(
+              { _id: primaryRecord._id },
+              { 
+                $set: { 
+                  quantity: totalQuantity,
+                  updatedAt: new Date(),
+                  purchaseDate: new Date(),
+                }
+              }
+            );
+            
+            // Delete duplicate records
+            await this.inventoryModel.deleteMany({
+              _id: { $in: duplicateRecords.slice(1).map(r => r._id) }
+            });
+            
+            existingInventory = primaryRecord;
+            console.log(`Consolidated ${duplicateRecords.length} duplicate inventory records for medicine ${medicineRecord.name}`);
+          }
+        }
+
         if (existingInventory) {
-          // Update existing inventory - add the received quantity
+          // Update existing inventory - add received quantity
+          console.log(`Updating existing inventory for medicine ${medicineRecord.name}, adding ${item.quantity} units`);
           updates.push(
             this.inventoryModel.updateOne(
-              { _id: existingInventory._id },
+              { _id: existingInventory._id, user: new Types.ObjectId(userId) },
               {
                 $inc: { quantity: item.quantity },
                 $set: { 
                   updatedAt: new Date(),
-                  // Optionally update purchase price if provided
+                  // Update purchase price to latest if provided
                   ...(item.unitPrice && { purchasePrice: item.unitPrice }),
-                },
+                  // Update purchase date to today
+                  purchaseDate: new Date(),
+                }
               },
             ),
           );
         } else {
           // Create new inventory record
-          // Note: This requires batch info which might not be in the order
-          // For now, create with placeholder batch info
+          console.log(`Creating new inventory record for medicine ${medicineRecord.name} with ${item.quantity} units`);
           const newInventory = {
-            medicine: item.medicine,
-            user: userId,
+            medicine: medicineRecord._id, // Add medicine ObjectId reference
+            medicineName: medicineRecord.name,
+            user: new Types.ObjectId(userId), // Convert string userId to ObjectId
             batchNumber: `BATCH-${order.orderNumber}-${Date.now()}`,
             quantity: item.quantity,
             purchasePrice: item.unitPrice || 0,
@@ -665,6 +722,9 @@ export class OrdersService {
             reorderLevel: 10,
             status: 'active',
             isActive: true,
+            purchaseDate: new Date(),
+            supplier: order.supplierName,
+            supplierInvoiceNumber: order.supplierInvoiceNumber,
           };
 
           updates.push(this.inventoryModel.create(newInventory));

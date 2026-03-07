@@ -88,7 +88,7 @@ export class Inventory {
 export const InventorySchema = SchemaFactory.createForClass(Inventory);
 
 // Compound indexes for efficient queries
-InventorySchema.index({ medicine: 1, batchNumber: 1, user: 1 }, { unique: true });
+InventorySchema.index({ medicineName: 1, user: 1 }, { unique: true });
 InventorySchema.index({ expiryDate: 1, isActive: 1 });
 InventorySchema.index({ status: 1, user: 1 });
 InventorySchema.index({ quantity: 1, reorderLevel: 1 });

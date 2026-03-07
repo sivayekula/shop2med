@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
 import { Inventory, InventoryDocument } from '../inventory/schemas/inventory.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
@@ -17,6 +17,11 @@ export class ReportsService {
     @InjectModel(Medicine.name) private medicineModel: Model<MedicineDocument>,
   ) {}
 
+  // Helper method to convert userId to ObjectId
+  private getUserObjectId(userId: string): Types.ObjectId {
+    return new Types.ObjectId(userId);
+  }
+
   // ==========================================
   // SALES REPORTS
   // ==========================================
@@ -24,8 +29,11 @@ export class ReportsService {
   async getSalesReport(userId: string, reportDto: SalesReportDto) {
     const { dateFrom, dateTo, groupBy, paymentMethod, status } = reportDto;
 
+    // Convert userId to ObjectId for consistent querying
+    const userObjectId = this.getUserObjectId(userId);
+
     const filter: any = {
-      user: userId,
+      user: userObjectId,
       isActive: true,
       saleDate: { $gte: dateFrom, $lte: dateTo },
     };
@@ -664,6 +672,9 @@ export class ReportsService {
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59);
 
+    // Convert userId to ObjectId for consistent querying
+    const userObjectId = this.getUserObjectId(userId);
+
     const [
       todayStats,
       yesterdayStats,
@@ -686,18 +697,32 @@ export class ReportsService {
       // Last month stats
       this.getSalesStats(userId, lastMonth, lastMonthEnd),
 
-      // Recent sales (last 10)
-      this.saleModel
-        .find({ user: userId, isActive: true, status: 'completed' })
-        .sort({ saleDate: -1 })
-        .limit(10)
-        .select('billNumber customerName totalAmount saleDate paymentMethod')
-        .exec(),
+      // Recent sales (last 10) - use ObjectId for consistent querying
+      (async () => {
+        console.log('Fetching recent sales for user:', userObjectId);
+        const sales = await this.saleModel
+          .find({ 
+            user: userObjectId, 
+            $or: [
+              { isActive: true },
+              { isActive: { $exists: false } },
+              { isActive: null }
+            ],
+            status: 'completed' 
+          })
+          .sort({ saleDate: -1 })
+          .limit(10)
+          .select('billNumber customerName totalAmount saleDate paymentMethod')
+          .exec();
+        
+        console.log('Found recent sales:', sales.length, 'items');
+        return sales;
+      })(),
 
       // Low stock alerts — includes out_of_stock + low_stock, sorted by qty ascending
       this.inventoryModel
         .find({
-          user: userId,
+          user: userObjectId,
           isActive: true,
           status: { $in: ['out_of_stock', 'low_stock'] },
         })
@@ -708,7 +733,7 @@ export class ReportsService {
       // Expiry alerts (next 30 days)
       this.inventoryModel
         .find({
-          user: userId,
+          user: userObjectId,
           isActive: true,
           expiryDate: {
             $gte: today,
@@ -724,7 +749,7 @@ export class ReportsService {
       this.saleModel.aggregate([
         {
           $match: {
-            user: userId,
+            user: userObjectId,
             isActive: true,
             status: 'completed',
             saleDate: { $gte: today },
@@ -783,11 +808,59 @@ export class ReportsService {
 
   // Helper: Get sales stats for a period
   private async getSalesStats(userId: string, dateFrom: Date, dateTo: Date) {
-    return this.saleModel.aggregate([
+    // Convert userId to ObjectId for consistent querying
+    const userObjectId = this.getUserObjectId(userId);
+    
+    console.log('Getting sales stats for user:', userObjectId, 'from:', dateFrom.toISOString(), 'to:', dateTo.toISOString());
+    
+    // First, let's see what sales exist for this user without date filtering
+    const allSales = await this.saleModel
+      .find({ user: userObjectId, isActive: true })
+      .sort({ saleDate: -1 })
+      .limit(10)
+      .select('billNumber saleDate status totalAmount')
+      .exec();
+    
+    console.log('All sales for user (no date filter):', allSales.length, 'items');
+    allSales.forEach((sale, index) => {
+      console.log(`Sale ${index + 1}:`, {
+        billNumber: sale.billNumber,
+        saleDate: sale.saleDate,
+        status: sale.status,
+        isActive: sale.isActive,
+        totalAmount: sale.totalAmount
+      });
+    });
+    
+    // Let's also check ALL sales in the database to see if any exist at all
+    const allDatabaseSales = await this.saleModel
+      .find({})
+      .sort({ saleDate: -1 })
+      .limit(5)
+      .select('billNumber user saleDate status totalAmount')
+      .exec();
+    
+    console.log('ALL sales in database:', allDatabaseSales.length, 'items');
+    allDatabaseSales.forEach((sale, index) => {
+      console.log(`DB Sale ${index + 1}:`, {
+        billNumber: sale.billNumber,
+        user: sale.user,
+        saleDate: sale.saleDate,
+        status: sale.status,
+        isActive: sale.isActive,
+        totalAmount: sale.totalAmount
+      });
+    });
+    
+    const result = await this.saleModel.aggregate([
       {
         $match: {
-          user: userId,
-          isActive: true,
+          user: userObjectId,
+          $or: [
+            { isActive: true },
+            { isActive: { $exists: false } },
+            { isActive: null }
+          ],
           status: 'completed',
           saleDate: { $gte: dateFrom, $lte: dateTo },
         },
@@ -800,5 +873,8 @@ export class ReportsService {
         },
       },
     ]);
+    
+    console.log('Sales stats result:', result);
+    return result;
   }
 }
