@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Put,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -124,7 +125,7 @@ export class OrdersController {
     return this.ordersService.update(id, userId, updateOrderDto);
   }
 
-  @Patch(':id/status')
+  @Put(':id/status')
   @ApiOperation({ summary: 'Update order status' })
   async updateStatus(
     @Param('id') id: string,

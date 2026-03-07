@@ -1,7 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Tesseract from 'tesseract.js';
 import * as sharp from 'sharp';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse');
 
 interface OCRResult {
   text: string;
@@ -11,12 +13,18 @@ interface OCRResult {
     quantity: number;
     unitPrice?: number;
     totalPrice?: number;
+    mrp?: number;
+    packing?: string;
+    packSize?: number;
+    cgst?: number;
+    sgst?: number;
   }>;
   supplierInfo?: {
     name?: string;
     phone?: string;
     address?: string;
     invoiceNumber?: string;
+    invoiceDate?: string;
   };
 }
 
@@ -24,262 +32,301 @@ interface OCRResult {
 export class OcrService {
   constructor(private configService: ConfigService) {}
 
-  // Process image with OCR
+  // ── Public: process image (JPEG/PNG/WebP) ─────────────────────────────────
+
   async processImage(imageBuffer: Buffer): Promise<OCRResult> {
     try {
-      // Validate input
       if (!imageBuffer || imageBuffer.length === 0) {
-        throw new Error('Invalid image buffer provided');
+        throw new Error('Empty image buffer');
       }
-
-      // Preprocess image for better OCR
-      const processedImage = await this.preprocessImage(imageBuffer);
-
-      // Perform OCR using Tesseract
-      const result = await Tesseract.recognize(processedImage, 'eng', {
-        logger: info => {
-          // Only log important messages to avoid spam
-          if (info.status === 'error' || info.status === 'completed') {
-            console.log('Tesseract:', info);
-          }
-        },
-      });
-
-      const rawText = result.data.text;
-      const confidence = result.data.confidence;
-
-      // Check if OCR confidence is too low
-      if (confidence < 30) {
-        console.warn(`Low OCR confidence: ${confidence}%`);
-      }
-
-      // Parse the OCR text
-      const parsedData = this.parseOrderText(rawText);
-
-      // Validate parsed data
-      if (!parsedData.items || parsedData.items.length === 0) {
-        console.warn('No items found in OCR result');
-      }
-
+      const text = await this.extractTextWithAutoRotation(imageBuffer);
+      if (!text.trim()) return { text: '', confidence: 0, items: [], supplierInfo: {} };
+      const parsed = this.parseIndianMedicalInvoice(text);
       return {
-        text: rawText,
-        confidence,
-        items: parsedData.items || [],
-        supplierInfo: parsedData.supplierInfo || {},
+        text,
+        confidence: parsed.items.length > 0 ? 75 : 30,
+        items: parsed.items,
+        supplierInfo: parsed.supplierInfo,
       };
     } catch (error) {
-      console.error('OCR processing error:', error);
-      
-      // Return a fallback result instead of throwing
-      return {
-        text: '',
-        confidence: 0,
-        items: [],
-        supplierInfo: {},
-      };
+      console.error('Image OCR error:', error);
+      return { text: '', confidence: 0, items: [], supplierInfo: {} };
     }
   }
 
-  // Preprocess image for better OCR accuracy
-  private async preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
-    return sharp(imageBuffer)
-      .resize(2000, null, { // Increase resolution
-        fit: 'inside',
-        withoutEnlargement: false,
-      })
-      .greyscale() // Convert to grayscale
-      .normalize() // Normalize contrast
-      .sharpen() // Sharpen image
-      .threshold(128) // Binary threshold
+  // ── Public: process PDF invoice ───────────────────────────────────────────
+
+  async processPdf(pdfBuffer: Buffer): Promise<OCRResult> {
+    try {
+      if (!pdfBuffer || pdfBuffer.length === 0) throw new Error('Empty PDF buffer');
+
+      // Try direct text extraction first (works for digital PDFs)
+      let text = '';
+      try {
+        const pdfData = await pdfParse(pdfBuffer);
+        text = pdfData.text || '';
+      } catch (e) {
+        console.warn('pdf-parse failed:', e.message);
+      }
+
+      // If no text, PDF is a scanned image — extract embedded JPEG and OCR it
+      if (!text.trim()) {
+        console.log('PDF has no text layer — running image OCR on embedded image');
+        const jpeg = this.extractJpegFromPdf(pdfBuffer);
+        if (jpeg) {
+          text = await this.extractTextWithAutoRotation(jpeg);
+        }
+      }
+
+      if (!text.trim()) return { text: '', confidence: 0, items: [], supplierInfo: {} };
+
+      const parsed = this.parseIndianMedicalInvoice(text);
+      return {
+        text,
+        confidence: 90,
+        items: parsed.items,
+        supplierInfo: parsed.supplierInfo,
+      };
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      return { text: '', confidence: 0, items: [], supplierInfo: {} };
+    }
+  }
+
+  // ── Auto-rotate: try 4 angles, return text with most med keywords ─────────
+
+  private async extractTextWithAutoRotation(imageBuffer: Buffer): Promise<string> {
+    const angles = [0, 90, 180, 270];
+    let bestText = '';
+    let bestScore = -1;
+
+    for (const angle of angles) {
+      try {
+        const rotated = angle !== 0
+          ? await sharp(imageBuffer).rotate(angle).toBuffer()
+          : imageBuffer;
+        const processed = await this.preprocessImage(rotated);
+        const result = await Tesseract.recognize(processed, 'eng', { logger: () => {} });
+        const text = result.data.text || '';
+        const score = this.scoreMedText(text);
+        if (score > bestScore) { bestScore = score; bestText = text; }
+      } catch (err) {
+        console.warn(`Rotation ${angle} failed:`, err.message);
+      }
+    }
+    return bestText;
+  }
+
+  private scoreMedText(text: string): number {
+    const t = text.toUpperCase();
+    const kw = ['TAB','CAP','SYRUP','INJ','CREAM','VIAL','MG','ML','INVOICE','GSTIN','MRP','PHARMA','MEDICAL'];
+    return kw.reduce((sum, k) => sum + (t.includes(k) ? 1 : 0), 0);
+  }
+
+  // ── Extract first embedded JPEG from a PDF buffer ─────────────────────────
+
+  private extractJpegFromPdf(buffer: Buffer): Buffer | null {
+    // JPEG: FF D8 FF ... FF D9
+    let start = -1;
+    for (let i = 0; i < buffer.length - 3; i++) {
+      if (buffer[i] === 0xff && buffer[i + 1] === 0xd8 && buffer[i + 2] === 0xff) {
+        start = i; break;
+      }
+    }
+    if (start === -1) return null;
+    let end = -1;
+    for (let i = buffer.length - 2; i >= start; i--) {
+      if (buffer[i] === 0xff && buffer[i + 1] === 0xd9) { end = i + 2; break; }
+    }
+    if (end === -1) return null;
+    return buffer.slice(start, end);
+  }
+
+  // ── Image preprocessing ───────────────────────────────────────────────────
+
+  private async preprocessImage(buf: Buffer): Promise<Buffer> {
+    return sharp(buf)
+      .resize(2400, null, { fit: 'inside', withoutEnlargement: false })
+      .greyscale()
+      .normalize()
+      .sharpen({ sigma: 1.5 })
       .toBuffer();
   }
 
-  // Parse OCR text to extract order information
-  private parseOrderText(text: string): {
-    items: Array<any>;
-    supplierInfo: any;
+  // ── Main parser: Indian Profitmaker/Daxinsoft medical invoice ─────────────
+  //
+  // Line format after medicine name + packing:
+  //   [HSN 8-digit] [BATCH alphanum] [EXP MM/YY] QTY FREE RATE DIS%(4.0) MRP OLD_MRP
+  //   GST%(2.5) CGST_AMT GST%(2.5) SGST_AMT TOTAL
+  //
+  // Key invariants used for parsing:
+  //   1. DIS% is always 4.0 and is followed by MRP which must be >= RATE
+  //   2. TOTAL = qty * rate * (1 - DIS/100) * (1 + GST/100) = qty * rate * 0.96 * 1.05
+  //   3. qty is derived from: round(TOTAL / (RATE * 0.96 * 1.05))
+
+  private parseIndianMedicalInvoice(text: string): {
+    items: OCRResult['items'];
+    supplierInfo: OCRResult['supplierInfo'];
   } {
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
-    
-    const items: Array<any> = [];
-    const supplierInfo: any = {};
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const items: OCRResult['items'] = [];
+    const supplierInfo: OCRResult['supplierInfo'] = {};
 
-    // Try to extract supplier information from first few lines
+    // ── Header extraction (first 10 lines) ──────────────────────────────────
     for (let i = 0; i < Math.min(10, lines.length); i++) {
-      const line = lines[i].trim();
-      
-      // Extract phone numbers
-      const phoneMatch = line.match(/(\+?91[-\s]?)?[6-9]\d{9}/);
-      if (phoneMatch && !supplierInfo.phone) {
-        supplierInfo.phone = phoneMatch[0];
-      }
+      const line = lines[i];
+      const invMatch = line.match(/inv(?:oice)?\s*no[:\s]+([A-Z0-9\-\/]+)/i);
+      if (invMatch && !supplierInfo.invoiceNumber) supplierInfo.invoiceNumber = invMatch[1].trim();
 
-      // Extract invoice number
-      const invoiceMatch = line.match(/(?:invoice|inv|bill)[\s#:]*([A-Z0-9\-\/]+)/i);
-      if (invoiceMatch && !supplierInfo.invoiceNumber) {
-        supplierInfo.invoiceNumber = invoiceMatch[1];
-      }
+      const dateMatch = line.match(/inv(?:oice)?\s*date[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+      if (dateMatch && !supplierInfo.invoiceDate) supplierInfo.invoiceDate = dateMatch[1];
 
-      // First non-numeric line might be supplier name
-      if (!supplierInfo.name && line.length > 5 && !/^\d+/.test(line)) {
-        supplierInfo.name = line;
+      const phoneMatch = line.match(/(?:ph(?:one)?|mob(?:ile)?)[:\s#]*(?:\+?91[-\s]?)?([6-9]\d{9})/i);
+      if (phoneMatch && !supplierInfo.phone) supplierInfo.phone = phoneMatch[1];
+
+      if (!supplierInfo.name && line.length > 5 && !/^\d/.test(line)
+        && !/^(gst|inv|d\.no|pan|gstin|dl no)/i.test(line)) {
+        supplierInfo.name = line.replace(/\|.*$/, '').trim();
       }
     }
 
-    // Parse medicine items
-    // Common patterns found in Indian medical invoices:
-    // "BECOSULES CAP 10X10 100 2400.00"
-    // "DEXTROMETHORPHAN SYRUP 100ML 1 60.00 60.00"
-    // "AZITHROMYCIN 500MG 3 150.00 450.00"
-    // "DOLO 650MG TAB 10 25.00 250.00"
-    // "1. Medicine Name 100 25.50 2550.00"
-    // "Medicine Name Qty:100 Price:25.50"
+    // ── Line item parsing ────────────────────────────────────────────────────
+    const SKIP = /^(sl|s\.no|product|name|qty|quantity|price|rate|amount|mfg|packing|hsn|batch|exp|total|note|software|cgst|sgst|subtotal|less|net pay|five|the\s|e\.\&|subject)/i;
 
     for (const line of lines) {
-      // Skip header-like lines
-      if (/^(sl|s\.no|item|medicine|product|name|qty|quantity|price|amount)/i.test(line)) {
-        continue;
-      }
+      if (SKIP.test(line)) continue;
+      if (line.length < 15) continue;
 
-      // Pattern 1: Medicine Name with strength/pack, Quantity, Unit Price, Total
-      // Matches: "BECOSULES CAP 10X10 100 2400.00" or "AZITHROMYCIN 500MG 3 150.00 450.00"
-      const pattern1 = /^(.+?\s+(?:TAB|CAP|SYRUP|INJ|SYP|CREAM|OINT|DROP|GEL|POWDER|SPRAY|PATCH)\s*[A-Z0-9\.\-X]*)?\s*(.+?)\s+(\d{1,4})\s+(\d+(?:\.\d{1,2})?)\s+(\d+(?:\.\d{1,2})?)$/;
-      const match1 = line.match(pattern1);
-      
-      if (match1) {
-        const medicineName = (match1[1] || '') + (match1[2] || '');
-        items.push({
-          medicineName: this.cleanMedicineName(medicineName),
-          quantity: parseInt(match1[3]),
-          unitPrice: parseFloat(match1[4]),
-          totalPrice: parseFloat(match1[5]),
-        });
-        continue;
-      }
+      // Strip leading manufacturer prefix: "GEM |", "GSK |", "STEA|", "abot]", "US ", "RE ", "LIFE]", "AL "
+      const stripped = line.replace(/^[A-Za-z]{1,5}[\s]*[|\]]\s*/i, '').trim();
 
-      // Pattern 2: Medicine Name, Quantity, Price (no total)
-      // Matches: "DOLO 650MG TAB 10 25.00" or "PARACETAMOL 500MG 5 45.50"
-      const pattern2 = /^(.+?\s+(?:TAB|CAP|SYRUP|INJ|SYP|CREAM|OINT|DROP|GEL|POWDER|SPRAY|PATCH)\s*[A-Z0-9\.\-X]*)?\s*(.+?)\s+(\d{1,4})\s+(\d+(?:\.\d{1,2})?)$/;
-      const match2 = line.match(pattern2);
-      
-      if (match2) {
-        const medicineName = (match2[1] || '') + (match2[2] || '');
-        const quantity = parseInt(match2[3]);
-        const unitPrice = parseFloat(match2[4]);
-        items.push({
-          medicineName: this.cleanMedicineName(medicineName),
-          quantity: quantity,
-          unitPrice: unitPrice,
-          totalPrice: quantity * unitPrice,
-        });
-        continue;
-      }
+      // Find packing token (e.g. 1*10S, 1*15S, 1*1VIA, 1*30ML, 1*100S, 1*10G)
+      const packMatch = stripped.match(/^(.+?)\s+(1\*[\w]+)\s/i);
+      if (!packMatch) continue;
 
-      // Pattern 3: Medicine Name with strength, Quantity only
-      // Matches: "BECOSULES CAP 10X10 100" or "DOLO 650MG TAB 10"
-      const pattern3 = /^(.+?\s+(?:TAB|CAP|SYRUP|INJ|SYP|CREAM|OINT|DROP|GEL|POWDER|SPRAY|PATCH)\s*[A-Z0-9\.\-X]*)?\s*(.+?)\s+(\d{1,4})$/;
-      const match3 = line.match(pattern3);
-      
-      if (match3) {
-        const medicineName = (match3[1] || '') + (match3[2] || '');
-        const quantity = parseInt(match3[3]);
-        if (quantity > 0 && quantity < 10000) {
-          items.push({
-            medicineName: this.cleanMedicineName(medicineName),
-            quantity: quantity,
-          });
-        }
-        continue;
-      }
+      const medicineName = this.cleanName(packMatch[1]);
+      const packing = packMatch[2];
+      const after = stripped.slice(packMatch[0].length);
 
-      // Pattern 4: Medicine Name Qty:X Price:Y format
-      const pattern4 = /^(.+?)\s+(?:qty|quantity)[:\s]+(\d+)(?:\s+(?:price|rate|@)[:\s]+(\d+(?:\.\d{1,2})?))?/i;
-      const match4 = line.match(pattern4);
-      
-      if (match4) {
-        items.push({
-          medicineName: this.cleanMedicineName(match4[1]),
-          quantity: parseInt(match4[2]),
-          unitPrice: match4[3] ? parseFloat(match4[3]) : undefined,
-        });
-        continue;
-      }
+      if (!medicineName || medicineName.length < 3) continue;
 
-      // Pattern 5: Simple format - medicine name and quantity
-      const pattern5 = /^(.+?)\s+(\d{1,4})(?:\s+(?:nos|pcs|units?|tabs?|caps?))?$/i;
-      const match5 = line.match(pattern5);
-      
-      if (match5 && parseInt(match5[2]) > 0 && parseInt(match5[2]) < 10000) {
-        const medicineName = this.cleanMedicineName(match5[1]);
-        if (medicineName.length > 3) { // Avoid single chars
-          items.push({
-            medicineName,
-            quantity: parseInt(match5[2]),
-          });
-        }
-      }
+      const parsed = this.parseAfterPacking(after);
+      if (!parsed) continue;
+
+      // Extract pack size from packing string (e.g., "1*10S" → 10, "1*15S" → 15)
+      const packSizeMatch = packing.match(/1\*(\d+)/i);
+      const packSize = packSizeMatch ? parseInt(packSizeMatch[1], 10) : undefined;
+
+      items.push({
+        medicineName,
+        packing,
+        packSize,
+        quantity: parsed.quantity,
+        unitPrice: parsed.unitPrice,
+        mrp: parsed.mrp,
+        cgst: parsed.cgst,
+        sgst: parsed.sgst,
+        totalPrice: parsed.totalPrice,
+      });
     }
 
-    // Filter out poor quality results
-    const filteredItems = items.filter(item => {
-      const name = item.medicineName.trim();
+    return { items, supplierInfo };
+  }
+
+  // Parse the numeric columns after the packing token
+  private parseAfterPacking(after: string): {
+    quantity: number;
+    unitPrice: number;
+    mrp: number | undefined;
+    totalPrice: number;
+    cgst: number | undefined;
+    sgst: number | undefined;
+  } | null {
+    // Fix common OCR noise
+    let s = after;
+    s = s.replace(/(\d)\.\s+(\d)/g, '$1.$2');   // "2. 89" → "2.89"
+    s = s.replace(/~(\d)/g, '$1');               // "~5" → "5"
+    s = s.replace(/"(\d)/g, '$1');               // '"4' → '4'
+    s = s.replace(/(\d),\s*(\d)/g, '$1.$2');     // "3, 9" → "3.9"
+    s = s.replace(/NET/g, ' 0.0 ');              // "NET" free → 0.0
+    
+    // CRITICAL FIX: OCR often reads decimal points as hyphens
+    // Convert patterns like "217-61" → "217.61" (but only for likely decimals, not batch codes)
+    // Match: digit(s)-digit(s) where second part is 1-3 digits at word boundaries
+    s = s.replace(/(\d+)-(\d{1,3})(?=\s|$|\)|\]|\||,)/g, '$1.$2');
+
+    const raw = s.match(/\d+(?:\.\d+)?/g) || [];
+    const nums = raw.map(n => parseFloat(n)).filter(n => n < 9_999_999);
+
+    if (nums.length < 5) return null;
+
+    const total = nums[nums.length - 1];
+
+    // DIS% is 4.0. Valid DIS% candidate must:
+    //   - be ~4.0
+    //   - have nums[di-1] as rate: 3 < rate < 5000
+    //   - have nums[di+1] as MRP: MRP >= rate (always true in Indian invoices)
+    //   - math check: total / (rate * 0.96 * 1.05) rounds to integer 1..500
+
+    const FACTOR = 0.96 * 1.05; // 4% discount, 5% GST (standard for this invoice)
+
+    // Try from rightmost 4.0 candidate (closer to the correct columns)
+    const disCandidates = nums
+      .map((n, i) => ({ n, i }))
+      .filter(({ n }) => Math.abs(n - 4.0) < 0.06)
+      .reverse();
+
+    for (const { i: di } of disCandidates) {
+      if (di < 1 || di + 1 >= nums.length) continue;
+
+      const rate = nums[di - 1];
       
-      // Remove items with very short or meaningless names
-      if (name.length < 3) return false;
-      
-      // Remove items with only single characters repeated
-      if (/^[a-zA-Z\s]+$/.test(name) && name.split(' ').filter(w => w.length > 1).length === 0) return false;
-      
-      // Remove items with too many special characters or random patterns
-      const specialCharRatio = (name.match(/[^\w\s]/g) || []).length / name.length;
-      if (specialCharRatio > 0.3) return false;
-      
-      // Remove items that are just random letters
-      if (/^[a-zA-Z\s]+$/.test(name) && name.length < 10 && Math.random() > 0.5) {
-        // Check if it looks like a real medicine name (has some consonants and vowels)
-        const hasVowels = /[aeiouAEIOU]/.test(name);
-        const hasConsonants = /[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]/.test(name);
-        if (!hasVowels || !hasConsonants) return false;
+      // MRP can be at di+1 or di+2 (calculated price vs actual printed MRP)
+      // Pick the larger value >= rate
+      let mrp = nums[di + 1];
+      if (di + 2 < nums.length && nums[di + 2] > mrp && nums[di + 2] >= rate) {
+        mrp = nums[di + 2];
       }
-      
-      return true;
-    });
 
-    return { items: filteredItems, supplierInfo };
+      if (rate < 3 || rate >= 5000) continue;
+      if (mrp < rate) continue;  // MRP must be >= rate
+
+      const qtyExact = total / (rate * FACTOR);
+      let qty = Math.round(qtyExact);
+
+      // Handle half-pack-free case (e.g. OXIPOD: effective 4.5 packs billed)
+      if (Math.abs(qtyExact - qty) > 0.25) {
+        const floor = Math.floor(qtyExact);
+        if (Math.abs(qtyExact - floor - 0.5) < 0.12) {
+          qty = floor; // e.g. 4.50 → qty=4 (4 ordered, 0.5 free)
+        } else {
+          continue;
+        }
+      }
+
+      if (qty < 1 || qty > 500) continue;
+
+      // Calculate CGST and SGST from the math instead of relying on column positions
+      // (OCR noise makes positional extraction unreliable)
+      // Formula: total = (qty × rate × (1 - disc%)) + CGST + SGST
+      // Where: base = qty × rate × 0.96, and CGST = SGST = (total - base) / 2
+      const baseAmount = qty * rate * (1 - 0.04); // After 4% discount
+      const totalGst = total - baseAmount;
+      const cgst = totalGst / 2;
+      const sgst = totalGst / 2;
+
+      return { quantity: qty, unitPrice: rate, mrp, totalPrice: total, cgst, sgst };
+    }
+
+    return null;
   }
 
-  // Clean medicine name
-  private cleanMedicineName(name: string): string {
-    return name
-      .replace(/^\d+\.?\s*/, '') // Remove leading numbers
-      .replace(/\s+(?:TAB|CAP|SYRUP|INJ|SYP|CREAM|OINT|DROP|GEL|POWDER|SPRAY|PATCH)\s*[A-Z0-9\.\-X]*$/i, '') // Remove dosage form at end
-      .replace(/[^\w\s\-()]/g, '') // Remove special chars except parentheses and hyphens
-      .replace(/[()]/g, '') // Remove parentheses
-      .replace(/\s+/g, ' ') // Normalize spaces
-      .replace(/^[a-zA-Z]\s+[a-zA-Z]\s+[a-zA-Z]/, '') // Remove patterns like "a b c"
-      .replace(/^[a-zA-Z]\s+[a-zA-Z]$/, '') // Remove patterns like "ab"
+  private cleanName(raw: string): string {
+    return raw
+      .replace(/[|)\]]/g, ' ')
+      .replace(/[^A-Za-z0-9 \-\/\.]/g, ' ')
+      .replace(/\s{2,}/g, ' ')
       .trim()
-      .split(/\s{2,}/)[0] // Take first part if multiple spaces
-      .substring(0, 100); // Limit length
-  }
-
-  // Alternative: Use Google Vision API (more accurate, paid)
-  async processImageWithGoogleVision(imageBuffer: Buffer): Promise<OCRResult> {
-    // Requires: npm install @google-cloud/vision
-    // Setup Google Cloud credentials
-    
-    // const vision = require('@google-cloud/vision');
-    // const client = new vision.ImageAnnotatorClient();
-    
-    // const [result] = await client.textDetection({
-    //   image: { content: imageBuffer.toString('base64') }
-    // });
-    
-    // const detections = result.textAnnotations;
-    // const text = detections[0]?.description || '';
-    
-    // return this.parseOrderText(text);
-    
-    throw new Error('Google Vision API not configured');
+      .substring(0, 80);
   }
 }

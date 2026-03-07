@@ -4,6 +4,8 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
+  Alert,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Text,
@@ -12,6 +14,7 @@ import {
   Chip,
   ActivityIndicator,
   FAB,
+  IconButton,
 } from 'react-native-paper';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import api from '../../services/api';
@@ -49,7 +52,8 @@ export default function OrdersScreen({ navigation }: any) {
       case 'received': return '#4CAF50';
       case 'confirmed': return '#2196F3';
       case 'pending': return '#FF9800';
-      case 'draft': return '#757575';
+      case 'draft': return '#9E9E9E';
+      case 'partially_received': return '#FFC107';
       case 'cancelled': return '#F44336';
       default: return '#757575';
     }
@@ -64,56 +68,97 @@ export default function OrdersScreen({ navigation }: any) {
     }
   };
 
+  const handleMarkAsReceived = async (orderId: string, orderNumber: string) => {
+    Alert.alert(
+      'Mark as Received',
+      `Mark order ${orderNumber} as received?\n\nThis will update your inventory automatically.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Received',
+          onPress: async () => {
+            try {
+              await api.put(`/orders/${orderId}/status`, { status: 'received' });
+              Alert.alert('Success', 'Order marked as received! Inventory updated.');
+              fetchOrders();
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.message || 'Failed to update order');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderItem = ({ item }: any) => (
-    <Card style={styles.card}>
-      <Card.Content>
-        <View style={styles.cardHeader}>
-          <View style={styles.orderInfo}>
-            <Text variant="titleMedium">{item.orderNumber}</Text>
-            <Text variant="bodySmall" style={styles.date}>
-              {formatDate(item.orderDate, 'DD/MM/YYYY')}
-            </Text>
+    <TouchableOpacity 
+      onPress={() => navigation.navigate('OrderDetails', { orderId: item._id })}
+      activeOpacity={0.7}
+    >
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.cardHeader}>
+            <View style={styles.orderInfo}>
+              <Text variant="titleMedium">{item.orderNumber}</Text>
+              <Text variant="bodySmall" style={styles.date}>
+                {formatDate(item.orderDate, 'DD/MM/YYYY')}
+              </Text>
+            </View>
+            <View style={styles.headerRight}>
+              <Chip
+                style={{ backgroundColor: getStatusColor(item.status) }}
+                textStyle={{ color: '#fff' }}
+              >
+                {item.status}
+              </Chip>
+              {(item.status === 'draft' || item.status === 'pending') && (
+                <IconButton
+                  icon="check-circle"
+                  iconColor="#4CAF50"
+                  size={28}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    handleMarkAsReceived(item._id, item.orderNumber);
+                  }}
+                  style={styles.quickActionButton}
+                />
+              )}
+            </View>
           </View>
-          <Chip
-            style={{ backgroundColor: getStatusColor(item.status) }}
-            textStyle={{ color: '#fff' }}
-          >
-            {item.status}
-          </Chip>
-        </View>
 
-        {item.supplierName && (
+          {item.supplierName && (
+            <View style={styles.detailRow}>
+              <Icon name="store" size={16} color="#666" />
+              <Text variant="bodyMedium"> {item.supplierName}</Text>
+            </View>
+          )}
+
           <View style={styles.detailRow}>
-            <Icon name="store" size={16} color="#666" />
-            <Text variant="bodyMedium"> {item.supplierName}</Text>
+            <Icon name="package-variant" size={16} color="#666" />
+            <Text variant="bodySmall"> {item.items?.length || 0} items</Text>
           </View>
-        )}
 
-        <View style={styles.detailRow}>
-          <Icon name="package-variant" size={16} color="#666" />
-          <Text variant="bodySmall"> {item.items?.length || 0} items</Text>
-        </View>
+          {item.ocrStatus && (
+            <View style={styles.ocrRow}>
+              <Icon
+                name={getOcrStatusIcon(item.ocrStatus)}
+                size={16}
+                color={item.ocrStatus === 'completed' ? '#4CAF50' : '#FF9800'}
+              />
+              <Text variant="bodySmall" style={styles.ocrText}>
+                OCR: {item.ocrStatus}
+              </Text>
+            </View>
+          )}
 
-        {item.ocrStatus && (
-          <View style={styles.ocrRow}>
-            <Icon
-              name={getOcrStatusIcon(item.ocrStatus)}
-              size={16}
-              color={item.ocrStatus === 'completed' ? '#4CAF50' : '#FF9800'}
-            />
-            <Text variant="bodySmall" style={styles.ocrText}>
-              OCR: {item.ocrStatus}
+          {item.totalAmount && (
+            <Text variant="titleLarge" style={styles.amount}>
+              ₹{item.totalAmount.toFixed(2)}
             </Text>
-          </View>
-        )}
-
-        {item.totalAmount && (
-          <Text variant="titleLarge" style={styles.amount}>
-            ₹{item.totalAmount.toFixed(2)}
-          </Text>
-        )}
-      </Card.Content>
-    </Card>
+          )}
+        </Card.Content>
+      </Card>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -189,6 +234,14 @@ const styles = StyleSheet.create({
   },
   orderInfo: {
     flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  quickActionButton: {
+    margin: 0,
+    marginLeft: 4,
   },
   date: {
     color: '#666',

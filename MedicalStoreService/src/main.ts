@@ -1,3 +1,10 @@
+// Polyfill DOMMatrix for Sharp in Node.js environment
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { DOMMatrix } = require('canvas');
+if (typeof global.DOMMatrix === 'undefined') {
+  global.DOMMatrix = DOMMatrix;
+}
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

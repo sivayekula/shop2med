@@ -18,11 +18,26 @@ export class OrderItem {
   @Prop({ trim: true })
   strength?: string;
 
+  @Prop({ trim: true })
+  packing?: string; // e.g., "1*10S", "1*15S", "1*1VIA"
+
+  @Prop({ min: 1 })
+  packSize?: number; // e.g., 10 (from "1*10S"), 15 (from "1*15S")
+
   @Prop({ min: 1 })
   quantity: number;
 
   @Prop({ min: 0 })
   unitPrice?: number;
+
+  @Prop({ min: 0 })
+  mrp?: number; // Maximum Retail Price
+
+  @Prop({ min: 0 })
+  cgst?: number; // Central GST amount
+
+  @Prop({ min: 0 })
+  sgst?: number; // State GST amount
 
   @Prop({ min: 0 })
   totalPrice?: number;

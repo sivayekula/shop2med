@@ -71,4 +71,3 @@ export class SaleReturn {
 export const SaleReturnSchema = SchemaFactory.createForClass(SaleReturn);
 
 SaleReturnSchema.index({ returnNumber: 1, user: 1 });
-SaleReturnSchema.index({ originalSale: 1 });

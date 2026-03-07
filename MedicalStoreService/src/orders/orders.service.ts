@@ -10,6 +10,10 @@ import {
   Medicine,
   MedicineDocument,
 } from '../medicines/schemas/medicine.schema';
+import {
+  Inventory,
+  InventoryDocument,
+} from '../inventory/schemas/inventory.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { SearchOrderDto } from './dto/search-order.dto';
@@ -20,6 +24,7 @@ export class OrdersService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Medicine.name) private medicineModel: Model<MedicineDocument>,
+    @InjectModel(Inventory.name) private inventoryModel: Model<InventoryDocument>,
     private ocrService: OcrService,
   ) {}
 
@@ -134,6 +139,118 @@ export class OrdersService {
     return order;
   }
 
+  // Create order from PDF invoice
+  async createFromPdf(
+    pdfBuffer: Buffer,
+    userId: string,
+    supplierName?: string,
+    notes?: string,
+  ): Promise<Order> {
+    const orderNumber = await this.generateOrderNumber(userId);
+
+    const order = new this.orderModel({
+      orderNumber,
+      user: userId,
+      orderDate: new Date(),
+      supplierName,
+      notes,
+      items: [],
+      status: 'draft',
+      ocrStatus: 'processing',
+    });
+
+    await order.save();
+
+    // Process PDF asynchronously — same pipeline as image OCR but uses pdf-parse
+    this.processPdfExtraction(order._id.toString(), pdfBuffer, userId).catch(
+      (error) => console.error('PDF extraction failed:', error),
+    );
+
+    return order;
+  }
+
+  // Process PDF extraction (async) — mirrors processOCR but calls processPdf instead
+  private async processPdfExtraction(
+    orderId: string,
+    pdfBuffer: Buffer,
+    userId: string,
+  ): Promise<void> {
+    try {
+      const pdfResult = await this.ocrService.processPdf(pdfBuffer);
+      console.log('PDF extraction result:', {
+        confidence: pdfResult.confidence,
+        itemCount: pdfResult.items.length,
+        supplierInfo: pdfResult.supplierInfo,
+      });
+
+      // Match each extracted medicine name against the medicines collection
+      const matchedItems = await Promise.all(
+        pdfResult.items.map(async (item) => {
+          const sanitizedName = item.medicineName
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\s+/g, '\\s+')
+            .trim();
+
+          let medicine = null;
+          if (sanitizedName && sanitizedName.length > 2) {
+            try {
+              medicine = await this.medicineModel.findOne({
+                $or: [
+                  { name: new RegExp(sanitizedName, 'i') },
+                  { genericName: new RegExp(sanitizedName, 'i') },
+                ],
+                isActive: true,
+              });
+            } catch (regexError) {
+              console.warn('Regex match failed for:', item.medicineName);
+            }
+          }
+
+          return {
+            medicine: medicine?._id,
+            medicineName: item.medicineName,
+            packing: item.packing,
+            packSize: item.packSize,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            mrp: item.mrp,
+            cgst: item.cgst,
+            sgst: item.sgst,
+            totalPrice: item.totalPrice,
+            isVerified: false,
+            isMatched: !!medicine,
+          };
+        }),
+      );
+
+      const subtotal = matchedItems.reduce(
+        (sum, item) => sum + (item.totalPrice || (item.unitPrice || 0) * item.quantity || 0),
+        0,
+      );
+
+      await this.orderModel.findByIdAndUpdate(orderId, {
+        items: matchedItems,
+        subtotal,
+        totalAmount: subtotal,
+        ocrStatus: 'completed',
+        ocrRawData: pdfResult,
+        ocrProcessedAt: new Date(),
+        ...(pdfResult.supplierInfo?.name && { supplierName: pdfResult.supplierInfo.name }),
+        ...(pdfResult.supplierInfo?.phone && { supplierPhone: pdfResult.supplierInfo.phone }),
+        ...(pdfResult.supplierInfo?.invoiceNumber && {
+          supplierInvoiceNumber: pdfResult.supplierInfo.invoiceNumber,
+        }),
+      });
+    } catch (error) {
+      console.error('PDF extraction failed for order:', orderId, error);
+      await this.orderModel.findByIdAndUpdate(orderId, {
+        ocrStatus: 'failed',
+        ocrError: error.message || 'PDF extraction error',
+        ocrProcessedAt: new Date(),
+      });
+    }
+  }
+
   // Process OCR (async)
   private async processOCR(
     orderId: string,
@@ -173,8 +290,13 @@ export class OrdersService {
           return {
             medicine: medicine?._id,
             medicineName: item.medicineName,
+            packing: item.packing,
+            packSize: item.packSize,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            mrp: item.mrp,
+            cgst: item.cgst,
+            sgst: item.sgst,
             totalPrice: item.totalPrice,
             isVerified: false, // Requires manual verification
             isMatched: !!medicine,
@@ -376,6 +498,11 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
+    // Update inventory when order is marked as received
+    if (status === 'received') {
+      await this.updateInventoryFromOrder(order, userId);
+    }
+
     return order;
   }
 
@@ -462,6 +589,99 @@ export class OrdersService {
       },
       pendingOCR,
     };
+  }
+
+  // Update inventory when order is marked as received
+  private async updateInventoryFromOrder(
+    order: OrderDocument,
+    userId: string,
+  ): Promise<void> {
+    try {
+      const updates = [];
+
+      for (const item of order.items) {
+        // For unmatched items, we'll still create inventory but without medicine reference
+        if (!item.medicine || !item.isMatched) {
+          console.log(`Creating inventory for unmatched item: ${item.medicineName}`);
+          
+          // Create inventory without medicine reference
+          const newInventory = {
+            user: userId,
+            medicineName: item.medicineName, // Store medicine name as string
+            batchNumber: `BATCH-${order.orderNumber}-${Date.now()}`,
+            quantity: item.quantity,
+            purchasePrice: item.unitPrice || 0,
+            sellingPrice: item.mrp || item.unitPrice || 0,
+            mrp: item.mrp || 0,
+            manufactureDate: new Date(),
+            expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+            reorderLevel: 10,
+            status: 'active',
+            isActive: true,
+            notes: `Auto-created from order ${order.orderNumber} (unmatched medicine)`,
+          };
+
+          updates.push(this.inventoryModel.create(newInventory));
+          continue;
+        }
+
+        // For matched items, proceed with normal logic
+        // Find existing inventory record for this medicine
+        const existingInventory = await this.inventoryModel.findOne({
+          medicine: item.medicine,
+          user: userId,
+          isActive: true,
+        });
+
+        if (existingInventory) {
+          // Update existing inventory - add the received quantity
+          updates.push(
+            this.inventoryModel.updateOne(
+              { _id: existingInventory._id },
+              {
+                $inc: { quantity: item.quantity },
+                $set: { 
+                  updatedAt: new Date(),
+                  // Optionally update purchase price if provided
+                  ...(item.unitPrice && { purchasePrice: item.unitPrice }),
+                },
+              },
+            ),
+          );
+        } else {
+          // Create new inventory record
+          // Note: This requires batch info which might not be in the order
+          // For now, create with placeholder batch info
+          const newInventory = {
+            medicine: item.medicine,
+            user: userId,
+            batchNumber: `BATCH-${order.orderNumber}-${Date.now()}`,
+            quantity: item.quantity,
+            purchasePrice: item.unitPrice || 0,
+            sellingPrice: item.mrp || item.unitPrice || 0,
+            mrp: item.mrp || 0,
+            manufactureDate: new Date(),
+            expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+            reorderLevel: 10,
+            status: 'active',
+            isActive: true,
+          };
+
+          updates.push(this.inventoryModel.create(newInventory));
+        }
+      }
+
+      // Execute all updates
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        console.log(
+          `Updated inventory for ${updates.length} items from order ${order.orderNumber}`,
+        );
+      }
+    } catch (error) {
+      console.error('Error updating inventory from order:', error);
+      // Don't throw - we don't want to fail the order status update if inventory update fails
+    }
   }
 
   private async generateOrderNumber(userId: string): Promise<string> {

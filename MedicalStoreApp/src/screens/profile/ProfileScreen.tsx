@@ -15,7 +15,7 @@ import {
   Divider,
   ActivityIndicator,
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
 export default function ProfileScreen({ navigation }: any) {

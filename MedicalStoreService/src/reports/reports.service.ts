@@ -694,11 +694,15 @@ export class ReportsService {
         .select('billNumber customerName totalAmount saleDate paymentMethod')
         .exec(),
 
-      // Low stock alerts
+      // Low stock alerts — includes out_of_stock + low_stock, sorted by qty ascending
       this.inventoryModel
-        .find({ user: userId, isActive: true, status: 'low_stock' })
+        .find({
+          user: userId,
+          isActive: true,
+          status: { $in: ['out_of_stock', 'low_stock'] },
+        })
         .populate('medicine')
-        .limit(5)
+        .sort({ quantity: 1 })
         .exec(),
 
       // Expiry alerts (next 30 days)
@@ -748,6 +752,12 @@ export class ReportsService {
       ? ((monthStats[0]?.revenue - lastMonthStats[0]?.revenue) / lastMonthStats[0]?.revenue) * 100
       : 0;
 
+    // Map availableQuantity onto each alert item (virtual is already computed)
+    const mappedLowStockAlerts = lowStockAlerts.map((item) => {
+      const obj = item.toObject({ virtuals: true });
+      return obj;
+    });
+
     return {
       today: {
         sales: todayStats[0]?.count || 0,
@@ -761,11 +771,12 @@ export class ReportsService {
       },
       recentSales,
       alerts: {
-        lowStock: lowStockAlerts.length,
+        lowStock: mappedLowStockAlerts.filter((i) => i.status === 'low_stock').length,
+        outOfStock: mappedLowStockAlerts.filter((i) => i.status === 'out_of_stock').length,
         expiringSoon: expiryAlerts.length,
       },
       topSellingToday,
-      lowStockAlerts,
+      lowStockAlerts: mappedLowStockAlerts,
       expiryAlerts,
     };
   }

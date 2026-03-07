@@ -5,8 +5,11 @@ export type InventoryDocument = Inventory & Document;
 
 @Schema({ timestamps: true })
 export class Inventory {
-  @Prop({ type: Types.ObjectId, ref: 'Medicine', required: true, index: true })
-  medicine: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Medicine', index: true })
+  medicine?: Types.ObjectId;
+
+  @Prop({ trim: true })
+  medicineName?: string; // For unmatched medicines
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   user: Types.ObjectId;

@@ -37,7 +37,13 @@ export class AuthController {
   @ApiResponse({ status: 201, description: 'User registered successfully' })
   @ApiResponse({ status: 409, description: 'User already exists' })
   async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+    try {
+      console.log(registerDto);
+      return this.authService.register(registerDto);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
   }
 
   @Public()

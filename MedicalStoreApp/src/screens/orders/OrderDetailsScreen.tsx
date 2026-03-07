@@ -55,7 +55,7 @@ interface OrderDetails {
   totalAmount: number;
   paymentMethod: string;
   paymentStatus: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'draft' | 'pending' | 'confirmed' | 'partially_received' | 'received' | 'cancelled';
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -86,10 +86,17 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'received':
       case 'completed':
         return '#4CAF50';
+      case 'confirmed':
+        return '#2196F3';
       case 'pending':
         return '#FF9800';
+      case 'draft':
+        return '#9E9E9E';
+      case 'partially_received':
+        return '#FFC107';
       case 'cancelled':
         return '#F44336';
       default:
@@ -99,10 +106,17 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case 'received':
       case 'completed':
         return 'check-circle';
+      case 'confirmed':
+        return 'check';
       case 'pending':
         return 'clock-outline';
+      case 'draft':
+        return 'file-document-outline';
+      case 'partially_received':
+        return 'check-circle-outline';
       case 'cancelled':
         return 'close-circle';
       default:
@@ -110,7 +124,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleStatusUpdate = async (newStatus: 'completed' | 'cancelled') => {
+  const handleStatusUpdate = async (newStatus: 'received' | 'cancelled') => {
     Alert.alert(
       'Confirm Action',
       `Are you sure you want to mark this order as ${newStatus}?`,
@@ -121,8 +135,8 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           onPress: async () => {
             setUpdating(true);
             try {
-              await api.patch(`/orders/${orderId}`, { status: newStatus });
-              Alert.alert('Success', `Order marked as ${newStatus}`);
+              await api.put(`/orders/${orderId}/status`, { status: newStatus });
+              Alert.alert('Success', `Order marked as ${newStatus}. ${newStatus === 'received' ? 'Inventory updated!' : ''}`);
               fetchOrderDetails();
             } catch (error: any) {
               Alert.alert(
@@ -340,19 +354,19 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             </Button>
           </View>
 
-          {order.status === 'pending' && (
+          {(order.status === 'draft' || order.status === 'pending') && (
             <>
               <Divider style={styles.divider} />
               <View style={styles.statusButtons}>
                 <Button
                   mode="contained"
                   icon="check-circle"
-                  onPress={() => handleStatusUpdate('completed')}
+                  onPress={() => handleStatusUpdate('received')}
                   style={[styles.statusButton, styles.completeButton]}
                   loading={updating}
                   disabled={updating}
                 >
-                  Mark as Completed
+                  Mark as Received
                 </Button>
                 <Button
                   mode="contained"
