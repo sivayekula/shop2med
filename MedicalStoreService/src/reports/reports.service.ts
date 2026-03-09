@@ -699,7 +699,6 @@ export class ReportsService {
 
       // Recent sales (last 10) - use ObjectId for consistent querying
       (async () => {
-        console.log('Fetching recent sales for user:', userObjectId);
         const sales = await this.saleModel
           .find({ 
             user: userObjectId, 
@@ -715,7 +714,6 @@ export class ReportsService {
           .select('billNumber customerName totalAmount saleDate paymentMethod')
           .exec();
         
-        console.log('Found recent sales:', sales.length, 'items');
         return sales;
       })(),
 
@@ -811,8 +809,6 @@ export class ReportsService {
     // Convert userId to ObjectId for consistent querying
     const userObjectId = this.getUserObjectId(userId);
     
-    console.log('Getting sales stats for user:', userObjectId, 'from:', dateFrom.toISOString(), 'to:', dateTo.toISOString());
-    
     // First, let's see what sales exist for this user without date filtering
     const allSales = await this.saleModel
       .find({ user: userObjectId, isActive: true })
@@ -821,15 +817,8 @@ export class ReportsService {
       .select('billNumber saleDate status totalAmount')
       .exec();
     
-    console.log('All sales for user (no date filter):', allSales.length, 'items');
     allSales.forEach((sale, index) => {
-      console.log(`Sale ${index + 1}:`, {
-        billNumber: sale.billNumber,
-        saleDate: sale.saleDate,
-        status: sale.status,
-        isActive: sale.isActive,
-        totalAmount: sale.totalAmount
-      });
+      // Process sales data
     });
     
     // Let's also check ALL sales in the database to see if any exist at all
@@ -840,16 +829,8 @@ export class ReportsService {
       .select('billNumber user saleDate status totalAmount')
       .exec();
     
-    console.log('ALL sales in database:', allDatabaseSales.length, 'items');
     allDatabaseSales.forEach((sale, index) => {
-      console.log(`DB Sale ${index + 1}:`, {
-        billNumber: sale.billNumber,
-        user: sale.user,
-        saleDate: sale.saleDate,
-        status: sale.status,
-        isActive: sale.isActive,
-        totalAmount: sale.totalAmount
-      });
+      // Process database sales data
     });
     
     const result = await this.saleModel.aggregate([
@@ -874,7 +855,6 @@ export class ReportsService {
       },
     ]);
     
-    console.log('Sales stats result:', result);
     return result;
   }
 }

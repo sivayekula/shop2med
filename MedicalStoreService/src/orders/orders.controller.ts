@@ -54,7 +54,6 @@ export class OrdersController {
     @Body() uploadDto: UploadOrderImageDto,
     @CurrentUser('id') userId: string,
   ) {
-    console.log('File:', file);
     if (!file) {
       throw new BadRequestException('Image file is required');
     }

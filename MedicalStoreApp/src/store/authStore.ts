@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import authService from '../services/authService';
+import biometricService from '../services/biometricService';
 
 interface User {
   id: string;
@@ -18,6 +19,10 @@ interface AuthState {
   register: (data: any) => Promise<void>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
+  biometricLogin: () => Promise<void>;
+  enableBiometric: () => Promise<boolean>;
+  disableBiometric: () => Promise<void>;
+  isBiometricEnabled: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -27,11 +32,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   login: async (email, password) => {
-    console.log('Login attempt:', { email, password: '***' });
     set({ isLoading: true, error: null });
+    
     try {
       const response = await authService.login({ email, password });
-      console.log('Login response:', response);
+      
       if (response.success) {
         set({ user: response.user, isAuthenticated: true, isLoading: false });
       } else {
@@ -39,9 +44,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error(response.error);
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      
       set({ 
-        error: error.response?.data?.message || error.message || 'Login failed', 
+        error: errorMessage, 
         isLoading: false 
       });
       throw error;
@@ -49,11 +55,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   register: async (data) => {
-    console.log('Register attempt:', { email: data.email, name: data.name });
     set({ isLoading: true, error: null });
     try {
       const response = await authService.register(data);
-      console.log('Register response:', response);
       if (response.success) {
         set({ user: response.user, isAuthenticated: true, isLoading: false });
       } else {
@@ -61,7 +65,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error(response.error);
       }
     } catch (error: any) {
-      console.error('Register error:', error);
       set({ 
         error: error.response?.data?.message || error.message || 'Registration failed', 
         isLoading: false 
@@ -71,10 +74,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    console.log('Logout attempt');
     try {
-      const response = await authService.logout();
-      console.log('Logout response:', response);
+      await authService.logout();
       set({ user: null, isAuthenticated: false });
     } catch (error) {
       console.error('Logout error:', error);
@@ -82,13 +83,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loadUser: async () => {
-    console.log('Loading user from storage');
     const isAuth = await authService.isAuthenticated();
-    console.log('Is authenticated:', isAuth);
     if (isAuth) {
       try {
         const user = await authService.getCurrentUser();
-        console.log('Loaded user:', user);
         if (user) {
           set({ user, isAuthenticated: true });
         } else {
@@ -101,6 +99,62 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } else {
       set({ user: null, isAuthenticated: false });
+    }
+  },
+
+  // Biometric login
+  biometricLogin: async () => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await authService.biometricLogin();
+      
+      if (response.success) {
+        set({ user: response.user, isAuthenticated: true, isLoading: false });
+      } else {
+        set({ error: response.error, isLoading: false });
+        throw new Error(response.error);
+      }
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Biometric login failed', 
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  // Enable biometric authentication
+  enableBiometric: async () => {
+    try {
+      const result = await biometricService.enableBiometric();
+      
+      if (result.success) {
+        return true;
+      } else {
+        throw new Error(result.error || 'Failed to enable biometric authentication');
+      }
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  // Disable biometric authentication
+  disableBiometric: async () => {
+    try {
+      await biometricService.disableBiometric();
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  // Check if biometric is enabled
+  isBiometricEnabled: async () => {
+    try {
+      const enabled = await biometricService.isBiometricEnabled();
+      return enabled;
+    } catch (error: any) {
+      return false;
     }
   },
 }));

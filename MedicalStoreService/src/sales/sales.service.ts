@@ -12,6 +12,7 @@ import { Inventory, InventoryDocument } from '../inventory/schemas/inventory.sch
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SearchSaleDto } from './dto/search-sale.dto';
 import { CreateSaleReturnDto } from './dto/create-sale-return.dto';
+import { ActivityLogService } from '../users/activity-log.service';
 
 @Injectable()
 export class SalesService {
@@ -19,13 +20,13 @@ export class SalesService {
     @InjectModel(Sale.name) private saleModel: Model<SaleDocument>,
     @InjectModel(SaleReturn.name) private saleReturnModel: Model<SaleReturnDocument>,
     @InjectModel(Inventory.name) private inventoryModel: Model<InventoryDocument>,
+    private activityLogService: ActivityLogService,
   ) {}
 
   // Create new sale
   async create(createSaleDto: CreateSaleDto, userId: string): Promise<Sale> {
     // Generate bill number
     const billNumber = await this.generateBillNumber(userId);
-
     // Validate and calculate amounts for each item
     const processedItems = [];
     let subtotal = 0;
@@ -111,7 +112,7 @@ export class SalesService {
     // Create sale
     const sale = new this.saleModel({
       billNumber,
-      user: userId,
+      user: new Types.ObjectId(userId),
       saleDate: createSaleDto.saleDate || new Date(),
       customerName: createSaleDto.customerName,
       customerPhone: createSaleDto.customerPhone,
@@ -135,8 +136,23 @@ export class SalesService {
       status: 'completed',
     });
 
-    await sale.save();
-    return sale.populate('items.medicine');
+    const savedSale = await sale.save();
+
+    // Log activity
+    await this.activityLogService.logActivity(
+      userId,
+      'sale_create',
+      `Sale created: ${billNumber} for ${createSaleDto.customerName}`,
+      {
+        billNumber,
+        customerName: createSaleDto.customerName,
+        totalAmount,
+        paymentMethod: createSaleDto.paymentMethod,
+        itemCount: processedItems.length,
+      },
+    );
+
+    return savedSale.populate('items.medicine');
   }
 
   // Get all sales
@@ -185,7 +201,7 @@ export class SalesService {
       limit = 20,
     } = searchDto;
 
-    const filter: any = { user: userId, isActive: true };
+    const filter: any = { user: new Types.ObjectId(userId), isActive: true };
 
     if (billNumber) {
       filter.billNumber = new RegExp(billNumber, 'i');
@@ -250,7 +266,7 @@ export class SalesService {
   // Get sale by ID
   async findOne(id: string, userId: string): Promise<Sale> {
     const sale = await this.saleModel
-      .findOne({ _id: id, user: userId })
+      .findOne({ _id: id, user: new Types.ObjectId(userId) })
       .populate('items.medicine')
       .exec();
 
@@ -264,7 +280,7 @@ export class SalesService {
   // Get sale by bill number
   async findByBillNumber(billNumber: string, userId: string): Promise<Sale> {
     const sale = await this.saleModel
-      .findOne({ billNumber, user: userId })
+      .findOne({ billNumber, user: new Types.ObjectId(userId) })
       .populate('items.medicine')
       .exec();
 
@@ -277,7 +293,7 @@ export class SalesService {
 
   // Cancel sale
   async cancelSale(id: string, userId: string, reason: string): Promise<Sale> {
-    const sale = await this.saleModel.findOne({ _id: id, user: userId });
+    const sale = await this.saleModel.findOne({ _id: id, user: new Types.ObjectId(userId) });
 
     if (!sale) {
       throw new NotFoundException('Sale not found');
@@ -311,7 +327,7 @@ export class SalesService {
     // Verify original sale exists
     const originalSale = await this.saleModel.findOne({
       _id: createReturnDto.originalSale,
-      user: userId,
+      user: new Types.ObjectId(userId),
     });
 
     if (!originalSale) {
@@ -374,7 +390,7 @@ export class SalesService {
     const saleReturn = new this.saleReturnModel({
       returnNumber,
       originalSale: createReturnDto.originalSale,
-      user: userId,
+      user: new Types.ObjectId(userId),
       returnDate: new Date(),
       items: processedItems,
       totalAmount,
@@ -399,7 +415,7 @@ export class SalesService {
   // Get sales analytics
   async getSalesAnalytics(userId: string, dateFrom: Date, dateTo: Date) {
     const filter: any = {
-      user: userId,
+      user: new Types.ObjectId(userId),
       isActive: true,
       status: 'completed',
       saleDate: { $gte: dateFrom, $lte: dateTo },
@@ -462,16 +478,14 @@ export class SalesService {
   // Get sales summary
   async getSalesSummary(userId: string) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const thisYear = new Date(today.getFullYear(), 0, 1);
 
-    const [todaySales, monthSales, yearSales, pendingPayments] = await Promise.all([
+    const [todaySales, topSellingToday, monthSales, yearSales, pendingPayments] = await Promise.all([
       this.saleModel.aggregate([
         {
           $match: {
-            user: userId,
+            user: new Types.ObjectId(userId),
             isActive: true,
             status: 'completed',
             saleDate: { $gte: today },
@@ -482,7 +496,22 @@ export class SalesService {
       this.saleModel.aggregate([
         {
           $match: {
-            user: userId,
+            user: new Types.ObjectId(userId),
+            isActive: true,
+            status: 'completed',
+            saleDate: { $gte: today },
+          },
+        },
+        { $unwind: '$items' },
+        { $group: { _id: '$items.medicine', count: { $sum: '$items.quantity' } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: 'medicines', localField: '_id', foreignField: '_id', as: 'medicine' } },
+      ]),
+      this.saleModel.aggregate([
+        {
+          $match: {
+            user: new Types.ObjectId(userId),
             isActive: true,
             status: 'completed',
             saleDate: { $gte: thisMonth },
@@ -493,7 +522,7 @@ export class SalesService {
       this.saleModel.aggregate([
         {
           $match: {
-            user: userId,
+            user: new Types.ObjectId(userId),
             isActive: true,
             status: 'completed',
             saleDate: { $gte: thisYear },
@@ -504,7 +533,7 @@ export class SalesService {
       this.saleModel.aggregate([
         {
           $match: {
-            user: userId,
+            user: new Types.ObjectId(userId),
             isActive: true,
             paymentStatus: { $in: ['pending', 'partial'] },
           },
@@ -539,22 +568,50 @@ export class SalesService {
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
 
-    // Find last bill of the month
-    const lastSale = await this.saleModel
-      .findOne({
-        user: userId,
-        billNumber: new RegExp(`^BILL-${year}${month}`),
+    // Get the highest existing bill number for this user/month
+    const existingBills = await this.saleModel
+      .find({
+        user: new Types.ObjectId(userId),
+        billNumber: new RegExp(`^BILL-${year}${month}-`),
       })
       .sort({ billNumber: -1 })
+      .limit(10)
       .exec();
 
+    // Extract all existing sequence numbers
+    const existingSequences = new Set();
+    existingBills.forEach(bill => {
+      const parts = bill.billNumber.split('-');
+      if (parts.length === 3) {
+        const sequence = parseInt(parts[2]);
+        if (!isNaN(sequence)) {
+          existingSequences.add(sequence);
+        }
+      }
+    });
+
+    // Find the next available sequence
     let sequence = 1;
-    if (lastSale) {
-      const lastSequence = parseInt(lastSale.billNumber.split('-').pop() || '0');
-      sequence = lastSequence + 1;
+    while (existingSequences.has(sequence)) {
+      sequence++;
     }
 
-    return `BILL-${year}${month}-${String(sequence).padStart(4, '0')}`;
+    // Generate the new bill number
+    const newBillNumber = `BILL-${year}${month}-${String(sequence).padStart(4, '0')}`;
+
+    // Double-check it doesn't exist (final safety check)
+    const finalCheck = await this.saleModel.findOne({
+      user: new Types.ObjectId(userId),
+      billNumber: newBillNumber
+    }).exec();
+
+    if (finalCheck) {
+      // Use timestamp as ultimate fallback
+      const timestamp = Date.now();
+      return `BILL-${year}${month}-${String(timestamp).slice(-4)}`;
+    }
+
+    return newBillNumber;
   }
 
   // Helper: Generate return number
@@ -565,7 +622,7 @@ export class SalesService {
 
     const lastReturn = await this.saleReturnModel
       .findOne({
-        user: userId,
+        user: new Types.ObjectId(userId),
         returnNumber: new RegExp(`^RET-${year}${month}`),
       })
       .sort({ returnNumber: -1 })

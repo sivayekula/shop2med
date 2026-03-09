@@ -177,11 +177,6 @@ export class OrdersService {
   ): Promise<void> {
     try {
       const pdfResult = await this.ocrService.processPdf(pdfBuffer);
-      console.log('PDF extraction result:', {
-        confidence: pdfResult.confidence,
-        itemCount: pdfResult.items.length,
-        supplierInfo: pdfResult.supplierInfo,
-      });
 
       // Match each extracted medicine name against the medicines collection
       const matchedItems = await Promise.all(
@@ -260,7 +255,6 @@ export class OrdersService {
     try {
       // Process image with OCR
       const ocrResult = await this.ocrService.processImage(imageBuffer);
-      console.log('OCR Result:', ocrResult);
       // Match medicines with database
       const matchedItems = await Promise.all(
         ocrResult.items.map(async (item) => {
@@ -605,11 +599,8 @@ export class OrdersService {
         
         // Skip if no medicine name available
         if (!medicineName) {
-          console.log(`skipping item without medicine name:`, item);
           continue;
         }
-
-        console.log(`Processing item: ${medicineName}, isMatched: ${item.isMatched}`);
 
         let medicineRecord = null;
         let isMatched = item.isMatched || false;
@@ -623,7 +614,6 @@ export class OrdersService {
 
         if (!medicineRecord) {
           // Create new medicine record
-          console.log(`Creating new medicine record: ${medicineName}`);
           medicineRecord = await this.medicineModel.create({
             name: medicineName,
             genericName: medicineName, // Use same name for generic name
@@ -635,10 +625,8 @@ export class OrdersService {
             isActive: true,
           });
           
-          console.log(`Created medicine with ID: ${medicineRecord._id}`);
           isMatched = true; // Now it's matched since we created the medicine
         } else {
-          console.log(`Found existing medicine: ${medicineRecord.name} (ID: ${medicineRecord._id})`);
           isMatched = true;
         }
 
@@ -649,8 +637,6 @@ export class OrdersService {
           isActive: true,
         });
 
-        console.log(`Looking for existing inventory: ${existingInventory ? 'Found' : 'Not found'}`);
-
         // If no exact match found, check if there are any duplicate records and consolidate them
         if (!existingInventory && medicineRecord) {
           const duplicateRecords = await this.inventoryModel.find({
@@ -659,8 +645,6 @@ export class OrdersService {
             isActive: true,
           });
 
-          console.log(`Found ${duplicateRecords.length} duplicate inventory records for medicine ${medicineRecord.name}`);
-          
           if (duplicateRecords.length > 1) {
             // Consolidate duplicates by keeping the first one and summing quantities
             const primaryRecord = duplicateRecords[0];
@@ -683,13 +667,11 @@ export class OrdersService {
             });
             
             existingInventory = primaryRecord;
-            console.log(`Consolidated ${duplicateRecords.length} duplicate inventory records for medicine ${medicineRecord.name}`);
           }
         }
 
         if (existingInventory) {
           // Update existing inventory - add received quantity
-          console.log(`Updating existing inventory for medicine ${medicineRecord.name}, adding ${item.quantity} units`);
           updates.push(
             this.inventoryModel.updateOne(
               { _id: existingInventory._id, user: new Types.ObjectId(userId) },
@@ -707,7 +689,6 @@ export class OrdersService {
           );
         } else {
           // Create new inventory record
-          console.log(`Creating new inventory record for medicine ${medicineRecord.name} with ${item.quantity} units`);
           const newInventory = {
             medicine: medicineRecord._id, // Add medicine ObjectId reference
             medicineName: medicineRecord.name,
@@ -734,9 +715,6 @@ export class OrdersService {
       // Execute all updates
       if (updates.length > 0) {
         await Promise.all(updates);
-        console.log(
-          `Updated inventory for ${updates.length} items from order ${order.orderNumber}`,
-        );
       }
     } catch (error) {
       console.error('Error updating inventory from order:', error);

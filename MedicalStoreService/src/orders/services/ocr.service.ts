@@ -71,7 +71,6 @@ export class OcrService {
 
       // If no text, PDF is a scanned image — extract embedded JPEG and OCR it
       if (!text.trim()) {
-        console.log('PDF has no text layer — running image OCR on embedded image');
         const jpeg = this.extractJpegFromPdf(pdfBuffer);
         if (jpeg) {
           text = await this.extractTextWithAutoRotation(jpeg);

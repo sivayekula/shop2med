@@ -68,27 +68,36 @@ export default function EditProductScreen({ navigation, route }: Props) {
 
   const fetchProductDetails = async () => {
     try {
-      const response = await api.get(`/products/${productId}`);
-      const product = response.data;
+      const response = await api.get(`/inventory/${productId}`);
+      const inventory = response.data; // Data is directly in response.data, not response.data.data
+
+      // Medicine details are already populated in the response
+      const medicineDetails = inventory.medicine;
 
       setFormData({
-        name: product.name || '',
-        description: product.description || '',
-        category: product.category || '',
-        manufacturer: product.manufacturer || '',
-        mrp: product.mrp?.toString() || '',
-        sellingPrice: product.sellingPrice?.toString() || '',
-        stock: product.stock?.toString() || '',
-        minStock: product.minStock?.toString() || '10',
-        batchNumber: product.batchNumber || '',
-        expiryDate: product.expiryDate ? new Date(product.expiryDate) : new Date(),
-        barcode: product.barcode || '',
-        sku: product.sku || '',
+        name: medicineDetails?.name || inventory.medicineName || '',
+        description: medicineDetails?.description || '',
+        category: medicineDetails?.category || '',
+        manufacturer: medicineDetails?.manufacturer || inventory.supplier || '',
+        mrp: inventory.mrp?.toString() || '',
+        sellingPrice: inventory.sellingPrice?.toString() || '',
+        stock: inventory.quantity?.toString() || '',
+        minStock: inventory.reorderLevel?.toString() || '10',
+        batchNumber: inventory.batchNumber || '',
+        expiryDate: inventory.expiryDate ? new Date(inventory.expiryDate) : new Date(),
+        barcode: medicineDetails?.barcode || '',
+        sku: medicineDetails?.sku || '',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching product:', error);
-      Alert.alert('Error', 'Failed to load product details');
-      navigation.goBack();
+      
+      if (error.response?.status === 401) {
+        Alert.alert('Authentication Error', 'Please login again');
+        navigation.navigate('Inventory' as any);
+      } else {
+        Alert.alert('Error', 'Failed to load product details');
+        navigation.goBack();
+      }
     } finally {
       setLoading(false);
     }
@@ -125,22 +134,24 @@ export default function EditProductScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
+      // Get the current inventory to preserve the medicine reference
+      const currentResponse = await api.get(`/inventory/${productId}`);
+      const currentInventory = currentResponse.data;
+      
       const payload = {
-        name: formData.name,
-        description: formData.description,
-        category: formData.category,
-        manufacturer: formData.manufacturer,
-        mrp: parseFloat(formData.mrp),
-        sellingPrice: parseFloat(formData.sellingPrice),
-        stock: parseInt(formData.stock),
-        minStock: parseInt(formData.minStock),
+        medicineName: currentInventory.medicine?._id || currentInventory.medicineName, // Use medicine ID if available
         batchNumber: formData.batchNumber,
+        quantity: parseInt(formData.stock),
         expiryDate: formData.expiryDate.toISOString(),
-        barcode: formData.barcode,
-        sku: formData.sku,
+        manufactureDate: currentInventory.manufactureDate, // Preserve original manufacture date
+        supplier: formData.manufacturer,
+        purchasePrice: parseFloat(formData.mrp) * 0.8, // Assuming 80% of MRP as purchase price
+        sellingPrice: parseFloat(formData.sellingPrice),
+        mrp: parseFloat(formData.mrp),
+        reorderLevel: parseInt(formData.minStock),
       };
 
-      await api.put(`/products/${productId}`, payload);
+      await api.patch(`/inventory/${productId}`, payload);
       Alert.alert('Success', 'Product updated successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -377,7 +388,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  centered: {
+  centered: { 
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',

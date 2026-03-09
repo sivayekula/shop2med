@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
+import biometricService from './biometricService';
 
 export interface LoginCredentials {
   email: string;
@@ -17,23 +18,32 @@ export interface RegisterData {
 class AuthService {
   async login(credentials: LoginCredentials) {
     try {
-      console.log('AuthService: Login attempt for:', credentials.email);
       const response = await api.post('/auth/login', credentials);
-      console.log('AuthService: Login response:', response.data);
+      
       const { accessToken, refreshToken, user } = response.data;
       
-      console.log('AuthService: Storing accessToken:', accessToken);
-      console.log('AuthService: Storing refreshToken:', refreshToken);
+      if (!accessToken || !refreshToken || !user) {
+        throw new Error('Invalid response from server');
+      }
       
       await AsyncStorage.setItem('accessToken', accessToken);
       await AsyncStorage.setItem('refreshToken', refreshToken);
       await AsyncStorage.setItem('user', JSON.stringify(user));
       
+      // Check if device supports biometrics and store credentials if needed
+      const isSupported = await biometricService.isSupported();
+      const hasEnrolled = await biometricService.hasEnrolledBiometrics();
+      const isBiometricEnabled = await biometricService.isBiometricEnabled();
+      
+      // Always store credentials if device supports biometrics (user can enable later)
+      if (isSupported && hasEnrolled) {
+        await biometricService.storeCredentials(credentials.email, credentials.password);
+      }
+      
       // Verify tokens were stored
       const storedAccessToken = await AsyncStorage.getItem('accessToken');
       const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
-      console.log('AuthService: Verification - stored accessToken:', storedAccessToken);
-      console.log('AuthService: Verification - stored refreshToken:', storedRefreshToken);
+      const storedUser = await AsyncStorage.getItem('user');
       
       return { success: true, user, accessToken, refreshToken };
     } catch (error: any) {
@@ -44,9 +54,7 @@ class AuthService {
 
   async register(data: RegisterData) {
     try {
-      console.log('AuthService: Register attempt for:', data.email);
       const response = await api.post('/auth/register', data);
-      console.log('AuthService: Register response:', response.data);
       const { accessToken, refreshToken, user } = response.data;
       
       await AsyncStorage.setItem('accessToken', accessToken);
@@ -62,11 +70,19 @@ class AuthService {
 
   async logout() {
     try {
-      console.log('AuthService: Logout attempt');
+      // Check if biometric is enabled before clearing credentials
+      const isBiometricEnabled = await biometricService.isBiometricEnabled();
+      
+      // Only clear biometric credentials if biometric is disabled
+      if (!isBiometricEnabled) {
+        await biometricService.clearCredentials();
+      }
+      
+      // Clear auth tokens and user data
       await AsyncStorage.removeItem('accessToken');
       await AsyncStorage.removeItem('refreshToken');
       await AsyncStorage.removeItem('user');
-      console.log('AuthService: Logout successful');
+      
       return { success: true };
     } catch (error) {
       console.error('AuthService: Logout error:', error);
@@ -74,10 +90,37 @@ class AuthService {
     }
   }
 
+  // Biometric login method
+  async biometricLogin() {
+    try {
+      // Authenticate with biometrics
+      const biometricResult = await biometricService.authenticateForLogin();
+      
+      if (!biometricResult.success) {
+        return { success: false, error: biometricResult.error || 'Biometric authentication failed' };
+      }
+      
+      // Get stored credentials
+      const userEmail = await AsyncStorage.getItem('userEmail');
+      const userPassword = await AsyncStorage.getItem('userPassword');
+      
+      if (!userEmail || !userPassword) {
+        return { success: false, error: 'No stored credentials found' };
+      }
+      
+      // Login with stored credentials
+      const loginResult = await this.login({ email: userEmail, password: userPassword });
+      
+      return loginResult;
+    } catch (error: any) {
+      console.error('AuthService: Biometric login error:', error);
+      return { success: false, error: error.message || 'Biometric login failed' };
+    }
+  }
+
   async getCurrentUser() {
     try {
       const userString = await AsyncStorage.getItem('user');
-      console.log('AuthService: Retrieved user from storage:', userString);
       return userString ? JSON.parse(userString) : null;
     } catch (error) {
       console.error('AuthService: Get user error:', error);
@@ -88,8 +131,6 @@ class AuthService {
   async isAuthenticated() {
     try {
       const token = await AsyncStorage.getItem('accessToken');
-      console.log('AuthService: isAuthenticated check - token exists:', !!token);
-      console.log('AuthService: isAuthenticated check - token value:', token);
       return !!token;
     } catch (error) {
       console.error('AuthService: Check auth error:', error);

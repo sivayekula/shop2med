@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Card, Text, Chip } from 'react-native-paper';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Card, Text, Chip, IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { formatCurrency } from '../utils/formatters';
 
 interface OrderCardProps {
   order: {
@@ -81,7 +82,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onPress }) => {
           <View style={styles.detailRow}>
             <MaterialCommunityIcons name="currency-inr" size={16} color="#666" />
             <Text variant="bodyMedium" style={styles.amount}>
-              ₹{order.totalAmount.toFixed(2)}
+              {formatCurrency(order.totalAmount)}
             </Text>
           </View>
         </View>

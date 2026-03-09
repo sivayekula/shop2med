@@ -3,6 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
+import { ActivityLogController } from './activity-log.controller';
+import { ActivityLogService } from './activity-log.service';
 import { User, UserSchema } from './schemas/user.schema';
 import { ShopSettings, ShopSettingsSchema } from './schemas/shop-settings.schema';
 import { ActivityLog, ActivityLogSchema } from './schemas/activity-log.schema';
@@ -20,8 +22,8 @@ import { ActivityLog, ActivityLogSchema } from './schemas/activity-log.schema';
       },
     }),
   ],
-  controllers: [UsersController],
-  providers: [UsersService],
-  exports: [UsersService],
+  controllers: [UsersController, ActivityLogController],
+  providers: [UsersService, ActivityLogService],
+  exports: [UsersService, ActivityLogService],
 })
 export class UsersModule {}

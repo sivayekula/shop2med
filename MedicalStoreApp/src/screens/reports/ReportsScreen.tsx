@@ -5,14 +5,17 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {
-  Text,
   Card,
+  Text,
   Button,
-  ActivityIndicator,
+  DataTable,
   SegmentedButtons,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { formatCurrency } from '../../utils/formatters';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import api from '../../services/api';
@@ -120,7 +123,7 @@ export default function ReportsScreen() {
               Revenue
             </Text>
             <Text variant="headlineMedium" style={styles.summaryValue}>
-              ₹{salesReport?.summary?.totalRevenue?.toFixed(0) || 0}
+              {formatCurrency(salesReport?.summary?.totalRevenue || 0)}
             </Text>
           </Card.Content>
         </Card>
@@ -175,7 +178,7 @@ export default function ReportsScreen() {
                   </Text>
                 </View>
                 <Text variant="titleMedium" style={styles.topItemRevenue}>
-                  ₹{item.totalRevenue.toFixed(0)}
+                  {formatCurrency(item.totalRevenue)}
                 </Text>
               </View>
             ))}
@@ -194,7 +197,7 @@ export default function ReportsScreen() {
               <View style={styles.paymentStats}>
                 <Text variant="bodySmall">{item.count} sales</Text>
                 <Text variant="titleMedium" style={styles.paymentAmount}>
-                  ₹{item.totalAmount.toFixed(0)}
+                  {formatCurrency(item.totalAmount)}
                 </Text>
               </View>
             </View>

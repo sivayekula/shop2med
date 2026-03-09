@@ -1,19 +1,21 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ActivityLogService } from '../users/activity-log.service';
+import { Request } from 'express';
+import { 
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -21,10 +23,11 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private activityLogService: ActivityLogService,
   ) {}
 
   // Register new user
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto, request?: Request & { ip?: string; get: (header: string) => string | undefined }) {
     // Check if user already exists
     const existingUser = await this.userModel.findOne({
       email: registerDto.email,
@@ -35,33 +38,59 @@ export class AuthService {
     }
 
     // Create new user
-    const user = new this.userModel(registerDto);
-    await user.save();
+    const user = new this.userModel({
+      ...registerDto,
+    });
+
+    const savedUser = await user.save();
+
+    // Log activity
+    await this.activityLogService.logActivity(
+      savedUser._id.toString(),
+      'profile_update',
+      `New user registered: ${registerDto.email}`,
+      { email: registerDto.email },
+      request
+    );
 
     // Generate tokens
-    const tokens = await this.generateTokens(user);
+    const tokens = await this.generateTokens(savedUser);
 
     // Save refresh token
-    user.refreshToken = tokens.refreshToken;
-    await user.save();
+    savedUser.refreshToken = tokens.refreshToken;
+    await savedUser.save();
 
     return {
-      user: this.sanitizeUser(user),
+      user: this.sanitizeUser(savedUser),
       ...tokens,
     };
   }
 
   // Login user
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, request?: Request & { ip?: string; get: (header: string) => string | undefined }) {
     // Find user
     const user = await this.userModel.findOne({ email: loginDto.email });
 
     if (!user) {
+      await this.activityLogService.logActivity(
+        'anonymous',
+        'login',
+        `Failed login attempt for email: ${loginDto.email}`,
+        { email: loginDto.email, reason: 'User not found' },
+        request
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check if user is active
     if (!user.isActive) {
+      await this.activityLogService.logActivity(
+        user._id.toString(),
+        'login',
+        `Failed login attempt: Account deactivated for ${loginDto.email}`,
+        { email: loginDto.email, reason: 'Account deactivated' },
+        request
+      );
       throw new UnauthorizedException('Account is deactivated');
     }
 
@@ -69,6 +98,13 @@ export class AuthService {
     const isPasswordValid = await user.comparePassword(loginDto.password);
 
     if (!isPasswordValid) {
+      await this.activityLogService.logActivity(
+        user._id.toString(),
+        'login',
+        `Failed login attempt: Invalid password for ${loginDto.email}`,
+        { email: loginDto.email, reason: 'Invalid password' },
+        request
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -79,6 +115,15 @@ export class AuthService {
     user.refreshToken = tokens.refreshToken;
     user.lastLoginAt = new Date();
     await user.save();
+
+    // Log successful login
+    await this.activityLogService.logActivity(
+      user._id.toString(),
+      'login',
+      `Successful login for ${loginDto.email}`,
+      { email: loginDto.email },
+      request
+    );
 
     return {
       user: this.sanitizeUser(user),

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Text, Chip, IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { formatCurrency } from '../utils/formatters';
 
 interface ProductCardProps {
   product: {
@@ -55,7 +56,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <View style={styles.row}>
             <MaterialCommunityIcons name="currency-inr" size={16} color="#666" />
             <Text variant="bodyMedium" style={styles.price}>
-              ₹{product.price.toFixed(2)}
+              {formatCurrency(product.price)}
             </Text>
           </View>
 

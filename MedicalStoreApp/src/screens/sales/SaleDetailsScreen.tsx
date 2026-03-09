@@ -1,17 +1,22 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import {
-  Text,
-  Card,
-  Button,
-  Divider,
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
   ActivityIndicator,
+} from 'react-native';
+import {
+  Card,
+  Text,
+  Button,
   DataTable,
+  Divider,
 } from 'react-native-paper';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import api from '../../services/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import api from '../../services/api';
 export default function SaleDetailsScreen({ route, navigation }: any) {
   const { saleId } = route.params;
   const [sale, setSale] = useState<any>(null);
@@ -93,25 +98,24 @@ export default function SaleDetailsScreen({ route, navigation }: any) {
         <Card.Title title="Items" />
         <Card.Content>
           <DataTable>
-            <DataTable.Header>
-              <DataTable.Title>Item</DataTable.Title>
-              <DataTable.Title numeric>Qty</DataTable.Title>
-              <DataTable.Title numeric>Price</DataTable.Title>
-              <DataTable.Title numeric>Total</DataTable.Title>
-            </DataTable.Header>
-
-            {sale.items.map((item: any, index: number) => (
+            {sale?.items?.map((item: any, index: number) => (
               <DataTable.Row key={index}>
                 <DataTable.Cell>{item.medicineName}</DataTable.Cell>
                 <DataTable.Cell numeric>{item.quantity}</DataTable.Cell>
                 <DataTable.Cell numeric>
-                  ₹{item.unitPrice.toFixed(2)}
+                  {formatCurrency(item.unitPrice)}
                 </DataTable.Cell>
                 <DataTable.Cell numeric>
-                  ₹{item.totalAmount.toFixed(2)}
+                  {formatCurrency(item.totalAmount)}
                 </DataTable.Cell>
               </DataTable.Row>
             ))}
+            <DataTable.Header>
+              <DataTable.Title>Medicine</DataTable.Title>
+              <DataTable.Title numeric>Qty</DataTable.Title>
+              <DataTable.Title numeric>Price</DataTable.Title>
+              <DataTable.Title numeric>Total</DataTable.Title>
+            </DataTable.Header>
           </DataTable>
         </Card.Content>
       </Card>
@@ -122,14 +126,14 @@ export default function SaleDetailsScreen({ route, navigation }: any) {
         <Card.Content>
           <View style={styles.summaryRow}>
             <Text variant="bodyLarge">Subtotal:</Text>
-            <Text variant="bodyLarge">₹{sale.subtotal.toFixed(2)}</Text>
+            <Text variant="bodyLarge">{formatCurrency(sale.subtotal)}</Text>
           </View>
 
           {sale.totalDiscount > 0 && (
             <View style={styles.summaryRow}>
               <Text variant="bodyMedium">Discount:</Text>
               <Text variant="bodyMedium" style={{ color: '#4CAF50' }}>
-                -₹{sale.totalDiscount.toFixed(2)}
+                -{formatCurrency(sale.totalDiscount)}
               </Text>
             </View>
           )}
@@ -137,18 +141,16 @@ export default function SaleDetailsScreen({ route, navigation }: any) {
           {sale.totalTax > 0 && (
             <View style={styles.summaryRow}>
               <Text variant="bodyMedium">Tax (GST):</Text>
-              <Text variant="bodyMedium">₹{sale.totalTax.toFixed(2)}</Text>
+              <Text variant="bodyMedium">{formatCurrency(sale.totalTax)}</Text>
             </View>
           )}
 
           <Divider style={styles.divider} />
 
           <View style={styles.summaryRow}>
-            <Text variant="titleLarge" style={styles.totalLabel}>
-              Total:
-            </Text>
+            <Text variant="titleLarge">Total:</Text>
             <Text variant="titleLarge" style={styles.totalAmount}>
-              ₹{sale.totalAmount.toFixed(2)}
+              {formatCurrency(sale.totalAmount)}
             </Text>
           </View>
 

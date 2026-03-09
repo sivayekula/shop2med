@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,18 +8,20 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {
-  Text,
-  TextInput,
-  Button,
   Card,
+  Text,
+  Button,
+  TextInput,
   IconButton,
-  Searchbar,
-  Portal,
   Modal,
+  Portal,
+  Searchbar,
+  RadioButton,
   List,
   Divider,
-  RadioButton,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { formatCurrency } from '../../utils/formatters';
 import api from '../../services/api';
 
 export default function CreateSaleScreen({ navigation }: any) {
@@ -199,7 +201,7 @@ export default function CreateSaleScreen({ navigation }: any) {
                     onPress={() => updateQuantity(index, item.quantity + 1)}
                   />
                   <Text variant="titleMedium" style={styles.itemTotal}>
-                    ₹{(item.quantity * item.unitPrice).toFixed(2)}
+                    {formatCurrency(item.quantity * item.unitPrice)}
                   </Text>
                   <IconButton
                     icon="delete"
@@ -239,7 +241,7 @@ export default function CreateSaleScreen({ navigation }: any) {
         <View style={styles.totalRow}>
           <Text variant="titleLarge">Total:</Text>
           <Text variant="titleLarge" style={styles.totalAmount}>
-            ₹{calculateTotal().toFixed(2)}
+            {formatCurrency(calculateTotal())}
           </Text>
         </View>
         <Button

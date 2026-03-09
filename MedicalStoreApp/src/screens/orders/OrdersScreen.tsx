@@ -4,21 +4,21 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
-  Text,
   Card,
+  Text,
+  IconButton,
   Searchbar,
   Chip,
-  ActivityIndicator,
   FAB,
-  IconButton,
 } from 'react-native-paper';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import api from '../../services/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import api from '../../services/api';
 
 export default function OrdersScreen({ navigation }: any) {
   const [orders, setOrders] = useState([]);
@@ -153,7 +153,7 @@ export default function OrdersScreen({ navigation }: any) {
 
           {item.totalAmount && (
             <Text variant="titleLarge" style={styles.amount}>
-              ₹{item.totalAmount.toFixed(2)}
+              {formatCurrency(item.totalAmount)}
             </Text>
           )}
         </Card.Content>

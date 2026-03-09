@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 // Screens
 import HomeScreen from '../screens/home/HomeScreen';
 import ProductDetailsScreen from '../screens/inventory/ProductDetailsScreen';
+import InventoryScreen from '../screens/inventory/InventoryScreen';
 import AddProductScreen from '../screens/inventory/AddProductScreen';
 import EditProductScreen from '../screens/inventory/EditProductScreen';
 import OrdersScreen from '../screens/orders/OrdersScreen';
@@ -13,17 +14,24 @@ import OrderDetailsScreen from '../screens/orders/OrderDetailsScreen';
 import CreateOrderScreen from '../screens/orders/CreateOrderScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import BiometricSettingsScreen from '../screens/profile/BiometricSettingsScreen';
 import ReportsScreen from '../screens/reports/ReportsScreen';
+import SalesScreen from '../screens/sales/SalesScreen';
+import SaleDetailsScreen from '../screens/sales/SaleDetailsScreen';
+import CreateSaleScreen from '../screens/sales/CreateSaleScreen';
+import QRTestScreen from '../screens/test/QRTestScreen';
 
 export type MainTabParamList = {
   HomeTab: undefined;
   InventoryTab: undefined;
   OrdersTab: undefined;
+  SalesTab: undefined;
   ProfileTab: undefined;
 };
 
 export type HomeStackParamList = {
   Home: undefined;
+  QRTest: undefined;
 };
 
 export type InventoryStackParamList = {
@@ -39,9 +47,16 @@ export type OrdersStackParamList = {
   CreateOrder: undefined;
 };
 
+export type SalesStackParamList = {
+  Sales: undefined;
+  SaleDetails: { saleId: string };
+  CreateSale: undefined;
+};
+
 export type ProfileStackParamList = {
   Profile: undefined;
   Settings: undefined;
+  BiometricSettings: undefined;
   Reports: undefined;
 };
 
@@ -49,6 +64,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createStackNavigator<HomeStackParamList>();
 const InventoryStack = createStackNavigator<InventoryStackParamList>();
 const OrdersStack = createStackNavigator<OrdersStackParamList>();
+const SalesStack = createStackNavigator<SalesStackParamList>();
 const ProfileStack = createStackNavigator<ProfileStackParamList>();
 
 function HomeStackScreen() {
@@ -59,6 +75,11 @@ function HomeStackScreen() {
         component={HomeScreen}
         options={{ title: 'Dashboard' }}
       />
+      <HomeStack.Screen
+        name="QRTest"
+        component={QRTestScreen}
+        options={{ title: 'QR Test' }}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -68,7 +89,7 @@ function InventoryStackScreen() {
     <InventoryStack.Navigator>
       <InventoryStack.Screen
         name="Inventory"
-        component={ProductDetailsScreen}
+        component={InventoryScreen}
         options={{ title: 'Inventory' }}
       />
       <InventoryStack.Screen
@@ -112,6 +133,28 @@ function OrdersStackScreen() {
   );
 }
 
+function SalesStackScreen() {
+  return (
+    <SalesStack.Navigator>
+      <SalesStack.Screen
+        name="Sales"
+        component={SalesScreen}
+        options={{ title: 'Sales' }}
+      />
+      <SalesStack.Screen
+        name="SaleDetails"
+        component={SaleDetailsScreen}
+        options={{ title: 'Sale Details' }}
+      />
+      <SalesStack.Screen
+        name="CreateSale"
+        component={CreateSaleScreen}
+        options={{ title: 'Create Sale' }}
+      />
+    </SalesStack.Navigator>
+  );
+}
+
 function ProfileStackScreen() {
   return (
     <ProfileStack.Navigator>
@@ -124,6 +167,11 @@ function ProfileStackScreen() {
         name="Settings"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <ProfileStack.Screen
+        name="BiometricSettings"
+        component={BiometricSettingsScreen}
+        options={{ title: 'Biometric Settings' }}
       />
       <ProfileStack.Screen
         name="Reports"
@@ -170,6 +218,16 @@ export default function MainNavigator() {
           tabBarLabel: 'Orders',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="clipboard-text" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SalesTab"
+        component={SalesStackScreen}
+        options={{
+          tabBarLabel: 'Sales',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="cash-register" size={size} color={color} />
           ),
         }}
       />

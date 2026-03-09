@@ -99,8 +99,6 @@ export default function CreateOrderScreen({ navigation }: any) {
         formData.append('notes', notes);
       }
 
-      console.log('Uploading image:', image.uri);
-
       const response = await api.post('/orders/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -124,8 +122,6 @@ export default function CreateOrderScreen({ navigation }: any) {
       setNotes('');
       setImage(null);
     } catch (error: any) {
-      console.log('Error:', error);
-      console.log('Error response:', error.response?.data);
       Alert.alert('Error', error.response?.data?.message || 'Failed to upload order');
     } finally {
       setLoading(false);

@@ -8,6 +8,8 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { ActivityLog, ActivityLogSchema } from '../users/schemas/activity-log.schema';
+import { ActivityLogService } from '../users/activity-log.service';
 
 @Module({
   imports: [
@@ -32,10 +34,13 @@ import { User, UserSchema } from '../users/schemas/user.schema';
       }),
       inject: [ConfigService],
     }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+  { name: User.name, schema: UserSchema },
+  { name: ActivityLog.name, schema: ActivityLogSchema }
+]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, ActivityLogService],
   exports: [AuthService, JwtStrategy, JwtRefreshStrategy, PassportModule],
 })
 export class AuthModule {}

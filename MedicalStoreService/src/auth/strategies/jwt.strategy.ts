@@ -19,8 +19,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
-    console.log('JWT Strategy - raw secret from config:', jwtSecret);
-    console.log('JWT Strategy - using secret:', jwtSecret ? jwtSecret.substring(0, 10) + '...' : 'SECRET_MISSING');
     
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

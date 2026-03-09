@@ -15,6 +15,9 @@ import { Text, Card, ActivityIndicator, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import { formatCurrency } from '@/utils/formatters';
+import MedicalBackground from '../../components/MedicalBackground';
+import MedicalHeader from '../../components/MedicalHeader';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +46,7 @@ function StockRow({ item, rank, isLast }: { item: any; rank: number; isLast: boo
   const avail = availQty(item);
   const ref   = (item.reorderLevel ?? 10);
   const pct   = avail <= 0 ? 0 : Math.min(100, Math.max(3, Math.round((avail / (ref * 3)) * 100)));
-  const name  = item.medicine?.name ?? 'Unknown';
+  const name  = item.medicineName ?? 'Unknown';
   const form  = item.medicine?.dosageForm ?? '';
   const unit  = item.medicine?.unit ?? 'units';
   const exp   = fmtExpiry(item.expiryDate);
@@ -58,11 +61,11 @@ function StockRow({ item, rank, isLast }: { item: any; rank: number; isLast: boo
       {/* Info column */}
       <View style={ss.stockInfo}>
         <Text style={ss.stockName} numberOfLines={1}>{name}</Text>
-        <Text style={ss.stockMeta}>{form}{exp ? ` · Exp: ${exp}` : ''}</Text>
+        <Text style={ss.stockMeta}>{exp ? `Exp: ${exp}` : ''}</Text>
         {/* Progress bar */}
-        <View style={ss.barTrack}>
+        {/* <View style={ss.barTrack}>
           <View style={[ss.barFill, { width: `${pct}%` as any, backgroundColor: s.color }]} />
-        </View>
+        </View> */}
         {/* Status badge */}
         <View style={[ss.badge, { backgroundColor: s.bg }]}>
           <Text style={[ss.badgeText, { color: s.color }]}>{s.label.toUpperCase()}</Text>
@@ -241,7 +244,7 @@ function AddSaleModal({
             style={ss.saleOpt}
             onPress={() => {
               onClose();
-              navigation.navigate('OrdersTab', { screen: 'CreateOrder' });
+              navigation.navigate('SalesTab', { screen: 'CreateSale' });
             }}
           >
             <View style={[ss.saleOptIcon, { backgroundColor: '#E8F5E9' }]}>
@@ -261,7 +264,7 @@ function AddSaleModal({
             style={ss.saleOpt}
             onPress={() => {
               onClose();
-              navigation.navigate('OrdersTab', { screen: 'Orders' });
+              navigation.navigate('SalesTab', { screen: 'Sales' });
             }}
           >
             <View style={[ss.saleOptIcon, { backgroundColor: '#E3F2FD' }]}>
@@ -269,7 +272,7 @@ function AddSaleModal({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={ss.saleOptTitle}>View All Sales</Text>
-              <Text style={ss.saleOptSub}>Browse and manage existing orders</Text>
+              <Text style={ss.saleOptSub}>Browse and manage existing sales</Text>
             </View>
             <Icon name="chevron-right" size={20} color="#9E9E9E" />
           </TouchableOpacity>
@@ -327,7 +330,7 @@ export default function HomeScreen({ navigation }: any) {
   if (expCnt) bannerParts.push(`${expCnt} Expiring Soon`);
 
   return (
-    <>
+    <MedicalBackground variant="light">
       <ScrollView
         style={ss.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -354,7 +357,7 @@ export default function HomeScreen({ navigation }: any) {
           <Card style={[ss.statCard, { backgroundColor: '#2196F3' }]}>
             <Card.Content>
               <Text variant="labelMedium" style={ss.statLabel}>Today's Revenue</Text>
-              <Text variant="headlineMedium" style={ss.statValue}>₹{dashboard?.today.revenue || 0}</Text>
+              <Text variant="headlineMedium" style={ss.statValue}>{formatCurrency(dashboard?.today.revenue || 0)}</Text>
             </Card.Content>
           </Card>
         </View>
@@ -408,7 +411,7 @@ export default function HomeScreen({ navigation }: any) {
               </View>
               {lowItems.map((item, idx) => (
                 <StockRow
-                  key={item._id}
+                  key={`stock-${idx}-${item._id || item.medicineName}`}
                   item={item}
                   rank={idx + 1}
                   isLast={idx === lowItems.length - 1}
@@ -425,7 +428,7 @@ export default function HomeScreen({ navigation }: any) {
             <Text variant="titleLarge" style={ss.sectionTitle}>🧾 Recent Sales</Text>
             <View style={ss.sectionActions}>
               <TouchableOpacity
-                onPress={() => navigation.navigate('OrdersTab', { screen: 'Orders' })}
+                onPress={() => navigation.navigate('SalesTab', { screen: 'Sales' })}
               >
                 <Text style={ss.seeAll}>See All</Text>
               </TouchableOpacity>
@@ -448,21 +451,24 @@ export default function HomeScreen({ navigation }: any) {
             </Card>
           ) : (
             <Card style={ss.listCard}>
-              {dashboard.recentSales.map((sale: any, idx: number) => (
-                <React.Fragment key={sale._id}>
-                  <View style={ss.saleRow}>
-                    <View style={ss.saleDot} />
-                    <View style={ss.saleInfo}>
-                      <Text style={ss.saleBill}>{sale.billNumber}</Text>
-                      <Text style={ss.saleMeta}>
-                        {sale.customerName || 'Walk-in'} · {sale.paymentMethod}
-                      </Text>
+              {dashboard.recentSales.map((sale: any, idx: number) => {
+                const isLast = idx === dashboard.recentSales.length - 1;
+                return (
+                  <View key={`sale-${idx}-${sale._id || sale.billNumber}`}>
+                    <View style={ss.saleRow}>
+                      <View style={ss.saleDot} />
+                      <View style={ss.saleInfo}>
+                        <Text style={ss.saleBill}>{sale.billNumber}</Text>
+                        <Text style={ss.saleMeta}>
+                          {sale.customerName || 'Walk-in'} · {sale.paymentMethod}
+                        </Text>
+                      </View>
+                      <Text style={ss.saleAmt}>{formatCurrency(sale.totalAmount)}</Text>
                     </View>
-                    <Text style={ss.saleAmt}>₹{sale.totalAmount}</Text>
+                    {!isLast && <Divider />}
                   </View>
-                  {idx < dashboard.recentSales.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
+                );
+              })}
             </Card>
           )}
         </View>
@@ -482,7 +488,7 @@ export default function HomeScreen({ navigation }: any) {
         onClose={() => setSaleModal(false)}
         navigation={navigation}
       />
-    </>
+    </MedicalBackground>
   );
 }
 

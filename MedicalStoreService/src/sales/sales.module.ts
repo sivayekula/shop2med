@@ -5,6 +5,7 @@ import { SalesController } from './sales.controller';
 import { Sale, SaleSchema } from './schemas/sale.schema';
 import { SaleReturn, SaleReturnSchema } from './schemas/sale-return.schema';
 import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schema';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schem
       { name: SaleReturn.name, schema: SaleReturnSchema },
       { name: Inventory.name, schema: InventorySchema },
     ]),
+    UsersModule,
   ],
   controllers: [SalesController],
   providers: [SalesService],

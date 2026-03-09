@@ -1,20 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
+  View,
 } from 'react-native';
 import { TextInput, Button, Text, Surface } from 'react-native-paper';
 import { useAuthStore } from '../../store/authStore';
+import biometricService from '../../services/biometricService';
+import { theme } from '../../theme/theme';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MedicalBackground from '../../components/MedicalBackground';
+import MedicalHeader from '../../components/MedicalHeader';
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showBiometric, setShowBiometric] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>('');
   
-  const { login, isLoading, error, isAuthenticated } = useAuthStore();
+  const { login, biometricLogin, isLoading, error, isAuthenticated } = useAuthStore();
+
+  // Check for biometric support on component mount
+  useEffect(() => {
+    checkBiometricSupport();
+  }, []);
+
+  const checkBiometricSupport = async () => {
+    try {
+      const isSupported = await biometricService.isSupported();
+      const hasEnrolled = await biometricService.hasEnrolledBiometrics();
+      const isEnabled = await biometricService.isBiometricEnabled();
+      
+      if (isSupported && hasEnrolled && isEnabled) {
+        // Get biometric type for display
+        const types = await biometricService.getBiometricTypes();
+        const type = types.length > 0 ? types[0] : 'biometric';
+        setBiometricType(type);
+        setShowBiometric(true);
+      }
+    } catch (error) {
+      console.error('LoginScreen: Error checking biometric support:', error);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      await biometricLogin();
+      // Navigation will be handled by useEffect when isAuthenticated changes
+    } catch (error: any) {
+      Alert.alert('Biometric Login Failed', error.message || 'Unable to authenticate with biometrics');
+    }
+  };
+
+  const getBiometricIcon = () => {
+    switch (biometricType) {
+      case 'FINGERPRINT':
+        return 'fingerprint';
+      case 'FACIAL_RECOGNITION':
+        return 'face';
+      case 'IRIS':
+        return 'eye';
+      default:
+        return 'fingerprint';
+    }
+  };
+
+  const getBiometricText = () => {
+    switch (biometricType) {
+      case 'FINGERPRINT':
+        return 'Login with Fingerprint';
+      case 'FACIAL_RECOGNITION':
+        return 'Login with Face ID';
+      case 'IRIS':
+        return 'Login with Iris';
+      default:
+        return 'Login with Biometrics';
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -26,7 +92,8 @@ export default function LoginScreen({ navigation }: any) {
       await login(email, password);
       // Navigation will be handled by useEffect when isAuthenticated changes
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
+      const errorMessage = error.response?.data?.message || 'Invalid credentials';
+      Alert.alert('Login Failed', errorMessage);
     }
   };
 
@@ -42,63 +109,94 @@ export default function LoginScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Surface style={styles.surface}>
-          <Text variant="headlineLarge" style={styles.title}>
-            Medical Store
-          </Text>
-          <Text variant="titleMedium" style={styles.subtitle}>
-            Login to your account
-          </Text>
-
-          <TextInput
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-            mode="outlined"
+      <MedicalBackground variant="primary">
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <MedicalHeader 
+            title="MedStore" 
+            subtitle="Your Digital Pharmacy Partner"
+            showIcons={true}
           />
 
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            right={
-              <TextInput.Icon
-                icon={showPassword ? 'eye-off' : 'eye'}
-                onPress={() => setShowPassword(!showPassword)}
+          <Surface style={styles.surface}>
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                mode="outlined"
+                outlineColor={theme.colors.border.light}
+                activeOutlineColor={theme.colorSchemes.primary.main}
+                textColor={theme.colors.text.primary}
               />
-            }
-            style={styles.input}
-            mode="outlined"
-          />
 
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              right={
+                <TextInput.Icon
+                  icon={showPassword ? 'eye-off' : 'eye'}
+                  onPress={() => setShowPassword(!showPassword)}
+                  color={theme.colors.text.secondary}
+                />
+              }
+              style={styles.input}
+              mode="outlined"
+              outlineColor={theme.colors.border.light}
+              activeOutlineColor={theme.colorSchemes.primary.main}
+              textColor={theme.colors.text.primary}
+            />
 
-          <Button
-            mode="contained"
-            onPress={handleLogin}
-            loading={isLoading}
-            disabled={isLoading}
-            style={styles.button}
-          >
-            Login
-          </Button>
+            {error && (
+              <Text style={styles.errorText}>{error}</Text>
+            )}
 
-          <Button
-            mode="text"
-            onPress={() => navigation.navigate('Register')}
-            style={styles.linkButton}
-          >
-            Don't have an account? Register
-          </Button>
-        </Surface>
-      </ScrollView>
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              loading={isLoading}
+              disabled={isLoading}
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+              buttonColor={theme.colorSchemes.primary.main}
+            >
+              Login
+            </Button>
+
+            {showBiometric && (
+              <View style={styles.biometricContainer}>
+                <Button
+                  mode="outlined"
+                  onPress={handleBiometricLogin}
+                  loading={isLoading}
+                  disabled={isLoading}
+                  style={styles.biometricButton}
+                  contentStyle={styles.biometricButtonContent}
+                  labelStyle={styles.biometricButtonLabel}
+                  icon={getBiometricIcon()}
+                  textColor={theme.colorSchemes.secondary.main}
+                >
+                  {getBiometricText()}
+                </Button>
+              </View>
+            )}
+
+            <Button
+              mode="text"
+              onPress={() => navigation.navigate('Register')}
+              style={styles.linkButton}
+              labelStyle={styles.linkButtonLabel}
+              textColor={theme.colorSchemes.secondary.main}
+            >
+              Don't have an account? Register
+            </Button>
+          </Surface>
+        </ScrollView>
+      </MedicalBackground>
     </KeyboardAvoidingView>
   );
 }
@@ -106,41 +204,61 @@ export default function LoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: theme.spacing.lg,
   },
   surface: {
-    padding: 20,
-    borderRadius: 10,
-    elevation: 4,
-  },
-  title: {
-    textAlign: 'center',
-    marginBottom: 10,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#666',
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.xxl,
+    backgroundColor: theme.colors.background.paper,
+    ...theme.shadows.xl,
   },
   input: {
-    marginBottom: 15,
+    marginBottom: theme.spacing.md,
   },
   button: {
-    marginTop: 10,
-    paddingVertical: 8,
+    marginTop: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    ...theme.shadows.md,
+  },
+  buttonContent: {
+    paddingVertical: theme.spacing.sm,
+  },
+  buttonLabel: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: '600',
   },
   linkButton: {
-    marginTop: 10,
+    marginTop: theme.spacing.md,
+  },
+  linkButtonLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: '500',
   },
   errorText: {
-    color: 'red',
+    color: theme.colors.error,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: theme.spacing.md,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  biometricContainer: {
+    marginTop: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  biometricButton: {
+    marginTop: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    borderColor: theme.colorSchemes.secondary.main,
+    borderWidth: 1,
+  },
+  biometricButtonContent: {
+    paddingVertical: theme.spacing.sm,
+  },
+  biometricButtonLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: '500',
   },
 });

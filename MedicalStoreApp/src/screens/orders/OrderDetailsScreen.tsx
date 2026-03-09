@@ -44,13 +44,18 @@ interface OrderDetails {
   customerEmail?: string;
   items: Array<{
     id: string;
-    productName: string;
+    productName?: string;
+    medicineName?: string;
     quantity: number;
-    price: number;
-    total: number;
+    price?: number;
+    unitPrice?: number;
+    total?: number;
+    totalPrice?: number;
   }>;
   subtotal: number;
-  tax: number;
+  tax?: number;
+  cgst?: number;
+  sgst?: number;
   discount: number;
   totalAmount: number;
   paymentMethod: string;
@@ -245,14 +250,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
               <View style={styles.itemRow}>
                 <View style={styles.itemInfo}>
                   <Text variant="bodyMedium" style={styles.itemName}>
-                    {item.productName}
+                    {item.productName || item.medicineName || 'Unknown Product'}
                   </Text>
                   <Text variant="bodySmall" style={styles.itemDetails}>
-                    {formatCurrency(item.price)} × {item.quantity}
+                    {formatCurrency(item.price || item.unitPrice || 0)} × {item.quantity}
                   </Text>
                 </View>
                 <Text variant="bodyLarge" style={styles.itemTotal}>
-                  {formatCurrency(item.total)}
+                  {formatCurrency(item.total || item.totalPrice || 0)}
                 </Text>
               </View>
               {index < order.items.length - 1 && <Divider style={styles.divider} />}
@@ -277,7 +282,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
           <View style={styles.summaryRow}>
             <Text variant="bodyMedium">Tax (GST)</Text>
-            <Text variant="bodyMedium">{formatCurrency(order.tax)}</Text>
+            <Text variant="bodyMedium">{formatCurrency(order.tax || (order.cgst || 0) + (order.sgst || 0))}</Text>
           </View>
           {order.discount > 0 && (
             <View style={styles.summaryRow}>
@@ -298,7 +303,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
               {formatCurrency(order.totalAmount)}
             </Text>
           </View>
-
+          {order.paymentMethod && (
           <View style={styles.paymentInfo}>
             <Chip icon="credit-card" style={styles.paymentChip}>
               {order.paymentMethod.toUpperCase()}
@@ -315,6 +320,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
               {order.paymentStatus === 'completed' ? 'Paid' : 'Pending'}
             </Chip>
           </View>
+          )}
         </Card.Content>
       </Card>
 
