@@ -10,11 +10,13 @@ import {
   TextInput,
   Alert,
   Animated,
+  BackHandler,
 } from 'react-native';
 import { Text, Card, ActivityIndicator, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import { useLogoutConfirmation } from '../../components/LogoutConfirmation';
 import { formatCurrency } from '@/utils/formatters';
 import MedicalBackground from '../../components/MedicalBackground';
 import MedicalHeader from '../../components/MedicalHeader';
@@ -47,7 +49,7 @@ function StockRow({ item, rank, isLast }: { item: any; rank: number; isLast: boo
   const ref   = (item.reorderLevel ?? 10);
   const pct   = avail <= 0 ? 0 : Math.min(100, Math.max(3, Math.round((avail / (ref * 3)) * 100)));
   const name  = item.medicineName ?? 'Unknown';
-  const form  = item.medicine?.dosageForm ?? '';
+  const form  = item.medicine?.type ?? '';
   const unit  = item.medicine?.unit ?? 'units';
   const exp   = fmtExpiry(item.expiryDate);
 
@@ -142,7 +144,7 @@ function AddStockModal({
                       <View style={{ flex: 1 }}>
                         <Text style={ss.pickName}>{item.medicine?.name ?? 'Unknown'}</Text>
                         <Text style={ss.pickMeta}>
-                          {item.medicine?.dosageForm} · {item.medicine?.unit}
+                          {item.medicine?.type} · {item.medicine?.dosageForm || item.medicine?.unit}
                         </Text>
                       </View>
                       <Text style={[ss.pickQty, { color: s.color }]}>{availQty(item)}</Text>
@@ -295,6 +297,20 @@ export default function HomeScreen({ navigation }: any) {
   const [stockModal, setStockModal] = useState(false);
   const [saleModal, setSaleModal]   = useState(false);
   const { user } = useAuthStore();
+  const { showLogoutConfirmation } = useLogoutConfirmation();
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      showLogoutConfirmation();
+      return true; // Prevent default back behavior
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [showLogoutConfirmation]);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -318,7 +334,9 @@ export default function HomeScreen({ navigation }: any) {
 
   // Already sorted ascending by quantity from backend
   const lowItems: any[] = dashboard?.lowStockAlerts ?? [];
-  const allHealthy      = lowItems.length === 0;
+  const totalInventory = dashboard?.totalInventory ?? 0;
+  const isInventoryEmpty = totalInventory === 0;
+  const allHealthy = !isInventoryEmpty && lowItems.length === 0;
 
   // Alert banner text parts
   const outCnt   = lowItems.filter(i => i.status === 'out_of_stock').length;
@@ -376,7 +394,13 @@ export default function HomeScreen({ navigation }: any) {
         )}
 
         {/* ── Low Stock section OR All Healthy ── */}
-        {allHealthy ? (
+        {isInventoryEmpty ? (
+          <View style={[ss.allGoodCard, { borderColor: '#FFCDD2' }]}>
+            <Text style={ss.allGoodEmoji}>📦</Text>
+            <Text style={[ss.allGoodTitle, { color: '#E53935' }]}>No Stock Available</Text>
+            <Text style={[ss.allGoodSub, { color: '#E53935' }]}>Add inventory items to get started</Text>
+          </View>
+        ) : allHealthy ? (
           <View style={ss.allGoodCard}>
             <Text style={ss.allGoodEmoji}>✅</Text>
             <Text style={ss.allGoodTitle}>All Stock is Healthy!</Text>

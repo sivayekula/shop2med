@@ -68,28 +68,6 @@ export default function OrdersScreen({ navigation }: any) {
     }
   };
 
-  const handleMarkAsReceived = async (orderId: string, orderNumber: string) => {
-    Alert.alert(
-      'Mark as Received',
-      `Mark order ${orderNumber} as received?\n\nThis will update your inventory automatically.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Received',
-          onPress: async () => {
-            try {
-              await api.put(`/orders/${orderId}/status`, { status: 'received' });
-              Alert.alert('Success', 'Order marked as received! Inventory updated.');
-              fetchOrders();
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.message || 'Failed to update order');
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const renderItem = ({ item }: any) => (
     <TouchableOpacity 
       onPress={() => navigation.navigate('OrderDetails', { orderId: item._id })}
@@ -111,18 +89,6 @@ export default function OrdersScreen({ navigation }: any) {
               >
                 {item.status}
               </Chip>
-              {(item.status === 'draft' || item.status === 'pending') && (
-                <IconButton
-                  icon="check-circle"
-                  iconColor="#4CAF50"
-                  size={28}
-                  onPress={(e) => {
-                    e?.stopPropagation?.();
-                    handleMarkAsReceived(item._id, item.orderNumber);
-                  }}
-                  style={styles.quickActionButton}
-                />
-              )}
             </View>
           </View>
 
@@ -238,10 +204,6 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  quickActionButton: {
-    margin: 0,
-    marginLeft: 4,
   },
   date: {
     color: '#666',

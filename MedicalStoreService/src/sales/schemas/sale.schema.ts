@@ -19,6 +19,12 @@ export class SaleItem {
   @Prop({ trim: true })
   batchNumber?: string;
 
+  @Prop({ trim: true })
+  type?: string; // e.g., "Tablet", "Capsule", "Injection" etc.
+
+  @Prop({ trim: true })
+  dosageForm?: string; // e.g., "10MG", "200MG", "500MG" etc.
+
   @Prop({ required: true, min: 1 })
   quantity: number;
 

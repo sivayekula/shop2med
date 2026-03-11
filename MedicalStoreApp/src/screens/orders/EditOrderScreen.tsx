@@ -79,6 +79,8 @@ interface Medicine {
   genericName?: string;
   category?: string;
   manufacturer?: string;
+  type?: string;
+  dosageForm?: string;
   strength?: string;
   packing?: string;
   mrp?: number;
@@ -89,6 +91,8 @@ interface OrderItemForm {
   medicineId?: string;
   medicineName: string;
   manufacturer?: string;
+  type?: string;
+  dosageForm?: string;
   strength?: string;
   packing?: string;
   quantity: number;
@@ -164,6 +168,8 @@ export default function EditOrderScreen({ navigation, route }: Props) {
         medicineId: item.medicine?._id,
         medicineName: item.medicineName,
         manufacturer: item.manufacturer,
+        type: item.type,
+        dosageForm: item.dosageForm,
         strength: item.strength,
         packing: item.packing,
         quantity: item.quantity,
@@ -223,6 +229,8 @@ export default function EditOrderScreen({ navigation, route }: Props) {
       medicineId: medicine._id,
       medicineName: medicine.name,
       manufacturer: medicine.manufacturer,
+      type: medicine.type,
+      dosageForm: medicine.dosageForm,
       strength: medicine.strength,
       packing: medicine.packing,
       unitPrice: medicine.mrp || 0,
@@ -299,6 +307,8 @@ export default function EditOrderScreen({ navigation, route }: Props) {
           medicine: item.medicineId,
           medicineName: item.medicineName,
           manufacturer: item.manufacturer,
+          type: item.type,
+          dosageForm: item.dosageForm,
           strength: item.strength,
           packing: item.packing,
           quantity: item.quantity,
@@ -437,7 +447,7 @@ export default function EditOrderScreen({ navigation, route }: Props) {
         />
         <Card.Content>
           {items.map((item, index) => (
-            <View key={index} style={styles.itemContainer}>
+            <View key={`order-item-${item.medicineId || index}`} style={styles.itemContainer}>
               <View style={styles.itemHeader}>
                 <Text variant="titleMedium">Item {index + 1}</Text>
                 {items.length > 1 && (
@@ -498,6 +508,16 @@ export default function EditOrderScreen({ navigation, route }: Props) {
               {item.manufacturer && (
                 <Text variant="bodySmall" style={styles.itemDetails}>
                   Manufacturer: {item.manufacturer}
+                </Text>
+              )}
+              {item.type && (
+                <Text variant="bodySmall" style={styles.itemDetails}>
+                  Type: {item.type}
+                </Text>
+              )}
+              {item.dosageForm && (
+                <Text variant="bodySmall" style={styles.itemDetails}>
+                  Dosage: {item.dosageForm}
                 </Text>
               )}
               {item.strength && (
@@ -635,9 +655,9 @@ export default function EditOrderScreen({ navigation, route }: Props) {
             <ScrollView style={styles.searchResults}>
               {searchResults.map((medicine) => (
                 <List.Item
-                  key={medicine._id}
+                  key={`medicine-${medicine._id}`}
                   title={medicine.name}
-                  description={`${medicine.manufacturer || 'Unknown'} • ${medicine.strength || 'N/A'} • ${medicine.category || 'N/A'}`}
+                  description={`${medicine.manufacturer || 'Unknown'} • ${medicine.type || 'N/A'} • ${medicine.dosageForm || medicine.strength || 'N/A'} • ${medicine.category || 'N/A'}`}
                   onPress={() => editingItemIndex !== null && selectMedicine(medicine, editingItemIndex)}
                   right={() => (
                     <Text variant="titleMedium" style={styles.medicinePrice}>

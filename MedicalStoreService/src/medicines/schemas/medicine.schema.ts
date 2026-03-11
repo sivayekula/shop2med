@@ -19,7 +19,10 @@ export class Medicine {
            'Inhaler', 'Spray', 'Unknown'],
     default: 'Unknown'
   })
-  dosageForm: string;
+  type: string;
+
+  @Prop({ trim: true })
+  dosageForm?: string; // e.g., "10MG", "200MG", "500MG" etc.
 
   @Prop({ trim: true })
   strength?: string;
@@ -111,5 +114,5 @@ MedicineSchema.index({
 
 // Compound indexes
 MedicineSchema.index({ category: 1, isActive: 1 });
-MedicineSchema.index({ dosageForm: 1, isActive: 1 });
+MedicineSchema.index({ type: 1, isActive: 1 });
 MedicineSchema.index({ usageCount: -1 });

@@ -19,6 +19,12 @@ export class OrderItem {
   strength?: string;
 
   @Prop({ trim: true })
+  type?: string; // e.g., "Tablet", "Capsule", "Injection" etc.
+
+  @Prop({ trim: true })
+  dosageForm?: string; // e.g., "10MG", "200MG", "500MG" etc.
+
+  @Prop({ trim: true })
   packing?: string; // e.g., "1*10S", "1*15S", "1*1VIA"
 
   @Prop({ min: 1 })

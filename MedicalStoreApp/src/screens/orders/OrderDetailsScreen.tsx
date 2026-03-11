@@ -246,7 +246,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
         />
         <Card.Content>
           {order.items.map((item, index) => (
-            <View key={item.id}>
+            <View key={`item-${item.id || index}`}>
               <View style={styles.itemRow}>
                 <View style={styles.itemInfo}>
                   <Text variant="bodyMedium" style={styles.itemName}>
@@ -364,6 +364,14 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             <>
               <Divider style={styles.divider} />
               <View style={styles.statusButtons}>
+                <Button
+                  mode="contained"
+                  icon="pencil"
+                  onPress={() => navigation.navigate('EditOrder', { orderId })}
+                  style={[styles.statusButton, styles.editButton]}
+                >
+                  Edit Order
+                </Button>
                 <Button
                   mode="contained"
                   icon="check-circle"
@@ -506,6 +514,9 @@ const styles = StyleSheet.create({
   },
   completeButton: {
     backgroundColor: '#4CAF50',
+  },
+  editButton: {
+    backgroundColor: '#2196F3',
   },
   cancelButton: {
     backgroundColor: '#F44336',

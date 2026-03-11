@@ -18,13 +18,13 @@ export class MedicineTypeExtractor {
       /\b(\d+mg?\s*capsule)/i,
     ],
     'Injection': [
-      /\b(inj|injection|inject)\b/i,
+      /\b(inj|injection|inject|vial)\b/i,
       /\b(\d+mg?\/ml\s*inj)/i,
       /\b(\d+mg?\/ml\s*injection)/i,
       /\b(vial|ampoule)\b/i,
     ],
     'Syrup': [
-      /\b(syrup|syr)\b/i,
+      /\b(syrup|syr|syrp|syru)\b/i,
       /\b(\d+mg?\/5ml\s*syr)/i,
       /\b(\d+mg?\/5ml\s*syrup)/i,
       /\b(ml\s*bottle)/i,
@@ -80,8 +80,8 @@ export class MedicineTypeExtractor {
     // Dosage form suffixes
     /\s+(tablet|tab|tabs)\s*$/i,
     /\s+(capsule|cap|caps)\s*$/i,
-    /\s+(injection|inj|inject)\s*$/i,
-    /\s+(syrup|syr)\s*$/i,
+    /\s+(injection|inj|inject|vial)\s*$/i,
+    /\s+(syrup|syr|syrp|syru)\s*$/i,
     /\s+(cream|crm)\s*$/i,
     /\s+(ointment|oint|oin)\s*$/i,
     /\s+(drop|drops)\s*$/i,

@@ -183,7 +183,7 @@ export default function CreateSaleScreen({ navigation }: any) {
           />
           <Card.Content>
             {items.map((item, index) => (
-              <View key={index} style={styles.itemRow}>
+              <View key={`sale-item-${item.medicineId || index}`} style={styles.itemRow}>
                 <View style={styles.itemInfo}>
                   <Text variant="titleSmall">{item.medicineName}</Text>
                   <Text variant="bodySmall">₹{item.unitPrice} each</Text>
@@ -277,7 +277,7 @@ export default function CreateSaleScreen({ navigation }: any) {
           <ScrollView style={styles.resultsContainer}>
             {searchResults.map((medicine: any) => (
               <TouchableOpacity
-                key={medicine._id}
+                key={`medicine-${medicine._id}`}
                 onPress={() => addItem(medicine)}
               >
                 <List.Item

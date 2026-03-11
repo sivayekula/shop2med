@@ -7,7 +7,8 @@ import * as path from 'path';
 interface NPPAMedicine {
   name: string;
   genericName?: string;
-  dosageForm: string;
+  type: string;
+  dosageForm?: string;
   strength?: string;
   composition?: string;
   unit: string;
@@ -59,6 +60,7 @@ async function importNPPAData() {
             {
               name: med.name,
               genericName: med.genericName,
+              type: med.type,
               dosageForm: med.dosageForm,
               strength: med.strength,
               composition: med.composition,

@@ -145,6 +145,16 @@ export class OrdersController {
     return this.ordersService.verifyItem(id, +itemIndex, userId, updates);
   }
 
+  @Patch(':id/with-items')
+  @ApiOperation({ summary: 'Update order with items' })
+  async updateWithItems(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() updateData: any,
+  ) {
+    return this.ordersService.updateWithItems(id, userId, updateData);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete order (soft delete)' })
   async remove(@Param('id') id: string, @CurrentUser('id') userId: string) {

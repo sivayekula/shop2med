@@ -224,7 +224,7 @@ export default function EditProductScreen({ navigation, route }: Props) {
         >
           {PRODUCT_CATEGORIES.map((category) => (
             <Menu.Item
-              key={category}
+              key={`category-${category}`}
               onPress={() => {
                 handleUpdate('category', category);
                 setCategoryMenuVisible(false);

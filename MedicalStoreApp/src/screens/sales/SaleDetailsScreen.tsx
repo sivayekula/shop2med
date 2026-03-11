@@ -99,7 +99,7 @@ export default function SaleDetailsScreen({ route, navigation }: any) {
         <Card.Content>
           <DataTable>
             {sale?.items?.map((item: any, index: number) => (
-              <DataTable.Row key={index}>
+              <DataTable.Row key={`sale-item-${item._id || item.medicineId || index}`}>
                 <DataTable.Cell>{item.medicineName}</DataTable.Cell>
                 <DataTable.Cell numeric>{item.quantity}</DataTable.Cell>
                 <DataTable.Cell numeric>

@@ -24,7 +24,8 @@ async function seedDatabase() {
       {
         name: 'Paracetamol',
         genericName: 'Paracetamol',
-        dosageForm: 'Tablet',
+        type: 'Tablet',
+        dosageForm: '500MG',
         strength: '500 mg',
         composition: 'Paracetamol 500mg',
         unit: '1 Tablet',
@@ -46,7 +47,8 @@ async function seedDatabase() {
       {
         name: 'Amoxicillin',
         genericName: 'Amoxicillin',
-        dosageForm: 'Capsule',
+        type: 'Capsule',
+        dosageForm: '500MG',
         strength: '500 mg',
         composition: 'Amoxicillin 500mg',
         unit: '1 Capsule',
@@ -68,7 +70,8 @@ async function seedDatabase() {
       {
         name: 'Cetirizine',
         genericName: 'Cetirizine',
-        dosageForm: 'Tablet',
+        type: 'Tablet',
+        dosageForm: '10MG',
         strength: '10 mg',
         composition: 'Cetirizine 10mg',
         unit: '1 Tablet',

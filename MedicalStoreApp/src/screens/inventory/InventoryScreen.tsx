@@ -208,7 +208,7 @@ export default function InventoryScreen({ navigation }: any) {
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
-        {renderFilterButton('all', 'All Items', inventory.length, 'package-variant-closed')}
+        {renderFilterButton('all', 'All Items', total, 'package-variant-closed')}
         {renderFilterButton('low_stock', 'Low Stock', stats.lowStock, 'alert-circle')}
         {renderFilterButton('expiring_soon', 'Expiring Soon', stats.expiringSoon, 'clock-alert')}
         {renderFilterButton('expired', 'Expired', stats.expired, 'alert-octagon')}

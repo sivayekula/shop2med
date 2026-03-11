@@ -42,6 +42,7 @@ interface ProductDetails {
     genericName?: string;
     category?: string;
     manufacturer?: string;
+    type?: string;
     dosageForm?: string;
     strength?: string;
     description?: string;
@@ -305,9 +306,25 @@ export default function ProductDetailsScreen() {
                     </View>
                   )}
 
-                  {product.medicine.strength && (
+                  {product.medicine.type && (
+                    <View style={styles.detailRow}>
+                      <Icon name="pill" size={20} color="#666" />
+                      <Text style={styles.detailLabel}>Type:</Text>
+                      <Text style={styles.detailValue}>{product.medicine.type}</Text>
+                    </View>
+                  )}
+
+                  {product.medicine.dosageForm && (
                     <View style={styles.detailRow}>
                       <Icon name="scale-balance" size={20} color="#666" />
+                      <Text style={styles.detailLabel}>Dosage:</Text>
+                      <Text style={styles.detailValue}>{product.medicine.dosageForm}</Text>
+                    </View>
+                  )}
+
+                  {product.medicine.strength && (
+                    <View style={styles.detailRow}>
+                      <Icon name="medical-bag" size={20} color="#666" />
                       <Text style={styles.detailLabel}>Strength:</Text>
                       <Text style={styles.detailValue}>{product.medicine.strength}</Text>
                     </View>

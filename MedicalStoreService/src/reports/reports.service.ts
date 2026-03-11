@@ -684,6 +684,7 @@ export class ReportsService {
       lowStockAlerts,
       expiryAlerts,
       topSellingToday,
+      totalInventory, // Add total inventory count
     ] = await Promise.all([
       // Today's stats
       this.getSalesStats(userId, today, new Date()),
@@ -764,6 +765,12 @@ export class ReportsService {
         { $sort: { quantity: -1 } },
         { $limit: 5 },
       ]),
+
+      // Total inventory count
+      this.inventoryModel.countDocuments({
+        user: userObjectId,
+        isActive: true,
+      }),
     ]);
 
     // Calculate growth percentages
@@ -801,6 +808,7 @@ export class ReportsService {
       topSellingToday,
       lowStockAlerts: mappedLowStockAlerts,
       expiryAlerts,
+      totalInventory, // Add total inventory count
     };
   }
 

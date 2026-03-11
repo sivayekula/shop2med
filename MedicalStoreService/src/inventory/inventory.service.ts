@@ -21,7 +21,7 @@ export class InventoryService {
     // Check if batch already exists for this medicine
     const existingBatch = await this.inventoryModel.findOne({
       medicineName: createInventoryDto.medicineName,
-      user: userId,
+      user: new Types.ObjectId(userId),
     });
 
     if (existingBatch) {
@@ -45,7 +45,7 @@ export class InventoryService {
 
     const inventory = new this.inventoryModel({
       ...createInventoryDto,
-      user: userId,
+      user: new Types.ObjectId(userId),
     });
 
     await inventory.save();
@@ -53,7 +53,7 @@ export class InventoryService {
     // Record transaction
     await this.recordTransaction({
       inventory: inventory._id,
-      user: userId,
+      user: new Types.ObjectId(userId),
       type: 'purchase',
       quantity: createInventoryDto.quantity,
       previousQuantity: 0,
@@ -72,13 +72,13 @@ export class InventoryService {
     const skip = Math.max(0, (safePage - 1) * safeLimit);
     const [inventory, total] = await Promise.all([
       this.inventoryModel
-        .find({ user: userId, isActive: true })
+        .find({ user: new Types.ObjectId(userId), isActive: true })
         .populate('medicine')
         .sort({ expiryDate: 1, quantity: 1 })
         .skip(skip)
         .limit(safeLimit)
         .exec(),
-      this.inventoryModel.countDocuments({ user: userId, isActive: true }),
+      this.inventoryModel.countDocuments({ user: new Types.ObjectId(userId), isActive: true }),
     ]);
 
     return {
@@ -96,7 +96,9 @@ export class InventoryService {
   async search(userId: string, searchDto: SearchInventoryDto) {
     const { query, status, supplier, expiryFrom, expiryTo, page = 1, limit = 20 } = searchDto;
     
-    const filter: any = { user: userId, isActive: true };
+    // Convert userId to ObjectId for consistent querying
+    const userObjectId = new Types.ObjectId(userId);
+    const filter: any = { user: userObjectId, isActive: true };
 
     if (status) {
       filter.status = status;
@@ -159,7 +161,7 @@ export class InventoryService {
   // Get inventory by ID
   async findOne(id: string, userId: string): Promise<Inventory> {
     const inventory = await this.inventoryModel
-      .findOne({ _id: id, user: userId })
+      .findOne({ _id: new Types.ObjectId(id), user: new Types.ObjectId(userId) })
       .populate('medicine')
       .exec();
 

@@ -170,7 +170,7 @@ export default function ReportsScreen() {
           {salesReport?.topMedicines
             ?.slice(0, 5)
             .map((item: any, index: number) => (
-              <View key={index} style={styles.topItem}>
+              <View key={`medicine-${item._id || index}`} style={styles.topItem}>
                 <View style={styles.topItemInfo}>
                   <Text variant="titleSmall">{item._id}</Text>
                   <Text variant="bodySmall" style={styles.topItemQuantity}>
@@ -190,7 +190,7 @@ export default function ReportsScreen() {
         <Card.Title title="Payment Methods" />
         <Card.Content>
           {salesReport?.paymentBreakdown?.map((item: any, index: number) => (
-            <View key={index} style={styles.paymentRow}>
+            <View key={`payment-${item._id || index}`} style={styles.paymentRow}>
               <Text variant="titleSmall" style={styles.paymentMethod}>
                 {item._id.toUpperCase()}
               </Text>

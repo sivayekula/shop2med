@@ -21,6 +21,11 @@ export class CreateMedicineDto {
            'Drops', 'Gel', 'Lotion', 'Powder', 'Solution', 'Suppository', 
            'Inhaler', 'Spray', 'Unknown'])
   @IsOptional()
+  type?: string;
+
+  @ApiPropertyOptional({ example: '500MG' })
+  @IsString()
+  @IsOptional()
   dosageForm?: string;
 
   @ApiPropertyOptional({ example: '500 mg' })

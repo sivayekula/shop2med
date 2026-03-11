@@ -352,7 +352,7 @@ export default function AddProductScreen({ navigation }: any) {
           <ScrollView style={styles.resultsContainer}>
             {searchResults.map((medicine: any) => (
               <TouchableOpacity
-                key={medicine._id}
+                key={`medicine-${medicine._id}`}
                 onPress={() => {
                   setSelectedMedicine(medicine);
                   setModalVisible(false);

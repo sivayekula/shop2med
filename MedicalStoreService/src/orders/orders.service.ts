@@ -18,6 +18,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { OcrService } from './services/ocr.service';
+import { MedicineTypeExtractor } from '../utils/medicine-type-extractor.util';
 
 @Injectable()
 export class OrdersService {
@@ -527,6 +528,67 @@ export class OrdersService {
     return order.populate('items.medicine');
   }
 
+  // Update order with items
+  async updateWithItems(
+    id: string,
+    userId: string,
+    updateData: any,
+  ): Promise<Order> {
+    const order = await this.orderModel.findOne({ _id: id, user: userId });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Check if order can be edited
+    const editableStatuses = ['draft', 'pending', 'confirmed'];
+    if (!editableStatuses.includes(order.status)) {
+      throw new BadRequestException(
+        `Cannot edit order with status: ${order.status}`,
+      );
+    }
+
+    // Process items - match medicines with database
+    const processedItems = await Promise.all(
+      updateData.items.map(async (item: any) => {
+        let medicine = null;
+        
+        if (item.medicine) {
+          medicine = await this.medicineModel.findById(item.medicine);
+        }
+        
+        return {
+          medicine: medicine?._id,
+          medicineName: item.medicineName,
+          manufacturer: item.manufacturer,
+          type: item.type,
+          dosageForm: item.dosageForm,
+          strength: item.strength,
+          packing: item.packing,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          isVerified: true,
+          isMatched: !!medicine,
+        };
+      }),
+    );
+
+    // Update order
+    order.supplierName = updateData.supplierName || order.supplierName;
+    order.supplierPhone = updateData.supplierPhone || order.supplierPhone;
+    order.supplierEmail = updateData.supplierEmail || order.supplierEmail;
+    order.supplierInvoiceNumber = updateData.supplierInvoiceNumber || order.supplierInvoiceNumber;
+    order.items = processedItems;
+    order.subtotal = updateData.subtotal;
+    order.discount = updateData.discount;
+    order.totalAmount = updateData.totalAmount;
+    order.notes = updateData.notes || order.notes;
+
+    await order.save();
+    return order.populate('items.medicine');
+  }
+
   // Delete order
   async remove(id: string, userId: string): Promise<void> {
     const result = await this.orderModel
@@ -613,14 +675,17 @@ export class OrdersService {
         });
 
         if (!medicineRecord) {
+          // Use MedicineTypeExtractor to parse medicine name
+          const extracted = MedicineTypeExtractor.extractAndClean(medicineName, item.packing);
+          
           // Create new medicine record
           medicineRecord = await this.medicineModel.create({
-            name: medicineName,
-            genericName: medicineName, // Use same name for generic name
-            dosageForm: 'Unknown', // Default dosage form
-            manufacturer: 'Unknown', // Default manufacturer
-            strength: item.strength || 'Unknown', // Use strength if available
-            category: 'General', // Default category
+            name: extracted.cleanedName,
+            genericName: extracted.cleanedName,
+            type: extracted.dosageForm,
+            manufacturer: 'Unknown',
+            strength: item.strength || '',
+            category: 'General',
             description: `Auto-created from order: ${order.orderNumber}`,
             isActive: true,
           });

@@ -12,6 +12,7 @@ import EditProductScreen from '../screens/inventory/EditProductScreen';
 import OrdersScreen from '../screens/orders/OrdersScreen';
 import OrderDetailsScreen from '../screens/orders/OrderDetailsScreen';
 import CreateOrderScreen from '../screens/orders/CreateOrderScreen';
+import EditOrderScreen from '../screens/orders/EditOrderScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import BiometricSettingsScreen from '../screens/profile/BiometricSettingsScreen';
@@ -45,6 +46,7 @@ export type OrdersStackParamList = {
   Orders: undefined;
   OrderDetails: { orderId: string };
   CreateOrder: undefined;
+  EditOrder: { orderId: string };
 };
 
 export type SalesStackParamList = {
@@ -128,6 +130,11 @@ function OrdersStackScreen() {
         name="CreateOrder"
         component={CreateOrderScreen}
         options={{ title: 'Create Order' }}
+      />
+      <OrdersStack.Screen
+        name="EditOrder"
+        component={EditOrderScreen}
+        options={{ title: 'Edit Order' }}
       />
     </OrdersStack.Navigator>
   );

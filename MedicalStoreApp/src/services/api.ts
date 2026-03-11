@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '../store/authStore';
 
 const API_URL = 'http://192.168.1.14:8000/api'; // Change for production - try this if localhost doesn't work
 
@@ -44,6 +45,7 @@ api.interceptors.response.use(
         
         if (!refreshToken) {
           await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+          useAuthStore.getState().logout();
           return Promise.reject(error);
         }
 
@@ -60,6 +62,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        useAuthStore.getState().logout();
         return Promise.reject(refreshError);
       }
     }
