@@ -317,7 +317,6 @@ export default function CreateOrderScreen({ navigation }: any) {
       medicineId: medicine._id,
       medicineName: medicine.name,
       manufacturer: medicine.manufacturer,
-      type: medicine.type,
       dosageForm: medicine.dosageForm,
       strength: medicine.strength,
       packing: medicine.packing,
@@ -350,7 +349,6 @@ export default function CreateOrderScreen({ navigation }: any) {
           medicine: item.medicineId,
           medicineName: item.medicineName,
           manufacturer: item.manufacturer,
-          type: item.type,
           dosageForm: item.dosageForm,
           strength: item.strength,
           packing: item.packing,
@@ -695,9 +693,9 @@ export default function CreateOrderScreen({ navigation }: any) {
                           mode="outlined"
                         />
                         <TextInput
-                          label="Type"
-                          value={item.type}
-                          onChangeText={(value) => updateItem(index, 'type', value)}
+                          label="Dosage Form"
+                          value={item.dosageForm}
+                          onChangeText={(value) => updateItem(index, 'dosageForm', value)}
                           style={[styles.itemInput, styles.halfInput]}
                           mode="outlined"
                         />
@@ -816,7 +814,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                     <View>
                       <Text variant="titleMedium">{item.name}</Text>
                       <Text variant="bodySmall">
-                        {item.manufacturer || 'Unknown'} • {item.type || 'N/A'} • {item.dosageForm || item.strength || 'N/A'}
+                        {item.manufacturer || 'Unknown'} • {item.dosageForm || 'N/A'} • {item.strength || 'N/A'}
                       </Text>
                     </View>
                     <Text variant="titleMedium">

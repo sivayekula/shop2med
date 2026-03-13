@@ -21,14 +21,9 @@ export class CreateMedicineDto {
            'Drops', 'Gel', 'Lotion', 'Powder', 'Solution', 'Suppository', 
            'Inhaler', 'Spray', 'Unknown'])
   @IsOptional()
-  type?: string;
-
-  @ApiPropertyOptional({ example: '500MG' })
-  @IsString()
-  @IsOptional()
   dosageForm?: string;
 
-  @ApiPropertyOptional({ example: '500 mg' })
+  @ApiPropertyOptional({ example: '500MG' })
   @IsString()
   @IsOptional()
   strength?: string;
@@ -80,6 +75,31 @@ export class CreateMedicineDto {
   @IsString()
   @IsOptional()
   hsnCode?: string;
+
+  @ApiPropertyOptional({ example: 'IMPORT' })
+  @IsString()
+  @IsOptional()
+  dataSource?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({ example: 'Allopathy', enum: ['Allopathy', 'Homeopathy', 'Ayurveda', 'Unani', 'Generic', 'Other'] })
+  @IsString()
+  @IsOptional()
+  type?: string;
+
+  @ApiPropertyOptional({ example: ['Crocin', 'Dolo'] })
+  @IsString({ each: true })
+  @IsOptional()
+  substitutes?: string[];
+
+  @ApiPropertyOptional({ example: ['Nausea', 'Headache', 'Dizziness'] })
+  @IsString({ each: true })
+  @IsOptional()
+  sideEffects?: string[];
 
   @ApiPropertyOptional({ example: false })
   @IsBoolean()

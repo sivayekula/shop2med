@@ -49,7 +49,7 @@ function StockRow({ item, rank, isLast }: { item: any; rank: number; isLast: boo
   const ref   = (item.reorderLevel ?? 10);
   const pct   = avail <= 0 ? 0 : Math.min(100, Math.max(3, Math.round((avail / (ref * 3)) * 100)));
   const name  = item.medicineName ?? 'Unknown';
-  const form  = item.medicine?.type ?? '';
+  const form  = item.medicine?.dosageForm ?? '';
   const unit  = item.medicine?.unit ?? 'units';
   const exp   = fmtExpiry(item.expiryDate);
 
@@ -144,7 +144,7 @@ function AddStockModal({
                       <View style={{ flex: 1 }}>
                         <Text style={ss.pickName}>{item.medicine?.name ?? 'Unknown'}</Text>
                         <Text style={ss.pickMeta}>
-                          {item.medicine?.type} · {item.medicine?.dosageForm || item.medicine?.unit}
+                          {item.medicine?.dosageForm} · {item.medicine?.strength || item.medicine?.unit}
                         </Text>
                       </View>
                       <Text style={[ss.pickQty, { color: s.color }]}>{availQty(item)}</Text>

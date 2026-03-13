@@ -40,7 +40,7 @@ export class MedicinesService {
     const existing = await this.medicineModel.findOne({
       name: createMedicineDto.name,
       strength: createMedicineDto.strength,
-      type: createMedicineDto.type,
+      dosageForm: createMedicineDto.dosageForm,
       isActive: true,
     });
 
@@ -61,7 +61,7 @@ export class MedicinesService {
 
   // Search medicines with filters
   async search(searchDto: SearchMedicineDto) {
-    const { query, category, type, manufacturer, page = 1, limit = 20 } = searchDto;
+    const { query, category, dosageForm, manufacturer, page = 1, limit = 20 } = searchDto;
     
     const filter: any = { isActive: true };
 
@@ -72,7 +72,7 @@ export class MedicinesService {
 
     // Filters
     if (category) filter.category = category;
-    if (type) filter.type = type;
+    if (dosageForm) filter.dosageForm = dosageForm;
     if (manufacturer) filter.manufacturer = new RegExp(manufacturer, 'i');
 
     const safePage = page || 1;
@@ -88,7 +88,7 @@ export class MedicinesService {
         .exec(),
       this.medicineModel.countDocuments(filter),
     ]);
-
+   
     return {
       data: medicines,
       pagination: {
@@ -111,7 +111,7 @@ export class MedicinesService {
       })
       .sort({ score: { $meta: 'textScore' }, usageCount: -1 })
       .limit(limit)
-      .select('name genericName type strength manufacturer mrp category')
+      .select('name genericName dosageForm strength manufacturer mrp category')
       .exec();
   }
 

@@ -26,7 +26,7 @@ export class OrdersService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Medicine.name) private medicineModel: Model<MedicineDocument>,
     @InjectModel(Inventory.name) private inventoryModel: Model<InventoryDocument>,
-    private ocrService: OcrService,
+    private ocrService: OcrService
   ) {}
 
   // Create order manually
@@ -561,7 +561,6 @@ export class OrdersService {
           medicine: medicine?._id,
           medicineName: item.medicineName,
           manufacturer: item.manufacturer,
-          type: item.type,
           dosageForm: item.dosageForm,
           strength: item.strength,
           packing: item.packing,
@@ -677,12 +676,11 @@ export class OrdersService {
         if (!medicineRecord) {
           // Use MedicineTypeExtractor to parse medicine name
           const extracted = MedicineTypeExtractor.extractAndClean(medicineName, item.packing);
-          
           // Create new medicine record
           medicineRecord = await this.medicineModel.create({
             name: extracted.cleanedName,
             genericName: extracted.cleanedName,
-            type: extracted.dosageForm,
+            dosageForm: extracted.dosageForm,
             manufacturer: 'Unknown',
             strength: item.strength || '',
             category: 'General',

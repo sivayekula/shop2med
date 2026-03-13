@@ -168,7 +168,6 @@ export default function EditOrderScreen({ navigation, route }: Props) {
         medicineId: item.medicine?._id,
         medicineName: item.medicineName,
         manufacturer: item.manufacturer,
-        type: item.type,
         dosageForm: item.dosageForm,
         strength: item.strength,
         packing: item.packing,
@@ -229,7 +228,6 @@ export default function EditOrderScreen({ navigation, route }: Props) {
       medicineId: medicine._id,
       medicineName: medicine.name,
       manufacturer: medicine.manufacturer,
-      type: medicine.type,
       dosageForm: medicine.dosageForm,
       strength: medicine.strength,
       packing: medicine.packing,
@@ -307,7 +305,6 @@ export default function EditOrderScreen({ navigation, route }: Props) {
           medicine: item.medicineId,
           medicineName: item.medicineName,
           manufacturer: item.manufacturer,
-          type: item.type,
           dosageForm: item.dosageForm,
           strength: item.strength,
           packing: item.packing,
@@ -510,14 +507,9 @@ export default function EditOrderScreen({ navigation, route }: Props) {
                   Manufacturer: {item.manufacturer}
                 </Text>
               )}
-              {item.type && (
-                <Text variant="bodySmall" style={styles.itemDetails}>
-                  Type: {item.type}
-                </Text>
-              )}
               {item.dosageForm && (
                 <Text variant="bodySmall" style={styles.itemDetails}>
-                  Dosage: {item.dosageForm}
+                  Dosage Form: {item.dosageForm}
                 </Text>
               )}
               {item.strength && (
@@ -657,7 +649,7 @@ export default function EditOrderScreen({ navigation, route }: Props) {
                 <List.Item
                   key={`medicine-${medicine._id}`}
                   title={medicine.name}
-                  description={`${medicine.manufacturer || 'Unknown'} • ${medicine.type || 'N/A'} • ${medicine.dosageForm || medicine.strength || 'N/A'} • ${medicine.category || 'N/A'}`}
+                  description={`${medicine.manufacturer || 'Unknown'} • ${medicine.dosageForm || 'N/A'} • ${medicine.strength || 'N/A'} • ${medicine.category || 'N/A'}`}
                   onPress={() => editingItemIndex !== null && selectMedicine(medicine, editingItemIndex)}
                   right={() => (
                     <Text variant="titleMedium" style={styles.medicinePrice}>

@@ -19,13 +19,10 @@ export class Medicine {
            'Inhaler', 'Spray', 'Unknown'],
     default: 'Unknown'
   })
-  type: string;
+  dosageForm: string;
 
   @Prop({ trim: true })
-  dosageForm?: string; // e.g., "10MG", "200MG", "500MG" etc.
-
-  @Prop({ trim: true })
-  strength?: string;
+  strength?: string; // e.g., "10MG", "200MG", "500MG" etc.
 
   @Prop({ trim: true })
   composition?: string;
@@ -53,6 +50,13 @@ export class Medicine {
 
   @Prop({
     type: String,
+    enum: ['Allopathy', 'Homeopathy', 'Ayurveda', 'Unani', 'Generic', 'Other'],
+    default: 'Allopathy'
+  })
+  type: string;
+
+  @Prop({
+    type: String,
     enum: ['Oral', 'Injectable', 'Topical', 'Ophthalmic', 'Inhalation', 'Other'],
     default: 'Oral'
   })
@@ -64,6 +68,12 @@ export class Medicine {
 
   @Prop({ trim: true })
   schedule?: string;
+
+  @Prop({ type: [String], default: [] })
+  substitutes?: string[];
+
+  @Prop({ type: [String], default: [] })
+  sideEffects?: string[];
 
   @Prop({ default: '30049099' })
   hsnCode: string;
@@ -114,5 +124,5 @@ MedicineSchema.index({
 
 // Compound indexes
 MedicineSchema.index({ category: 1, isActive: 1 });
-MedicineSchema.index({ type: 1, isActive: 1 });
+MedicineSchema.index({ dosageForm: 1, isActive: 1 });
 MedicineSchema.index({ usageCount: -1 });

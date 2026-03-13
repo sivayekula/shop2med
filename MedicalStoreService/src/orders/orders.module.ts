@@ -7,9 +7,11 @@ import { OcrService } from './services/ocr.service';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { Medicine, MedicineSchema } from '../medicines/schemas/medicine.schema';
 import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schema';
+import { MedicinesModule } from '../medicines/medicines.module';
 
 @Module({
   imports: [
+    MedicinesModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Medicine.name, schema: MedicineSchema },

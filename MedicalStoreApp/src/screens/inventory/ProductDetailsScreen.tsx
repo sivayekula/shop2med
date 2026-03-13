@@ -306,11 +306,11 @@ export default function ProductDetailsScreen() {
                     </View>
                   )}
 
-                  {product.medicine.type && (
+                  {product.medicine.dosageForm && (
                     <View style={styles.detailRow}>
                       <Icon name="pill" size={20} color="#666" />
-                      <Text style={styles.detailLabel}>Type:</Text>
-                      <Text style={styles.detailValue}>{product.medicine.type}</Text>
+                      <Text style={styles.detailLabel}>Dosage Form:</Text>
+                      <Text style={styles.detailValue}>{product.medicine.dosageForm}</Text>
                     </View>
                   )}
 

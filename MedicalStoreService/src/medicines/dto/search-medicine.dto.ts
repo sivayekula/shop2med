@@ -16,7 +16,7 @@ export class SearchMedicineDto {
   @ApiPropertyOptional({ example: 'Tablet' })
   @IsString()
   @IsOptional()
-  type?: string;
+  dosageForm?: string;
 
   @ApiPropertyOptional({ example: 'Cipla' })
   @IsString()

@@ -28,11 +28,6 @@ export class CreateOrderItemDto {
   @IsOptional()
   manufacturer?: string;
 
-  @ApiPropertyOptional({ example: 'Tablet' })
-  @IsString()
-  @IsOptional()
-  type?: string;
-
   @ApiPropertyOptional({ example: '500 mg' })
   @IsString()
   @IsOptional()
